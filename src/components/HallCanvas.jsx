@@ -1,5 +1,5 @@
-﻿import { useEffect, useRef } from "react";
-import { MAP } from "../constants";
+import { useEffect, useRef } from "react";
+import { AREA_META, DEFAULT_AREA_ID, MAP } from "../constants";
 import { createRandomAvatar } from "../avatar";
 
 function roundRect(ctx, x, y, width, height, radius) {
@@ -105,85 +105,136 @@ function drawAvatar(ctx, player) {
   ctx.restore();
 }
 
-function drawWoodHall(ctx) {
-  ctx.clearRect(0, 0, MAP.width, MAP.height);
-  const woodA = "#c89c68";
-  const woodB = "#b68653";
-  const wall = "#efe0ca";
-  const trim = "#8f633e";
+function getAreaTheme(areaId) {
+  switch (areaId) {
+    case "basketball":
+      return {
+        frame: "#6b4323",
+        panel: "#f3d1a5",
+        floorA: "#cf8d49",
+        floorB: "#ba7537",
+        deco: "#f7f2ea",
+        headline: "BASKETBALL COURT",
+        subline: "빠르게 팀을 꾸리고 한 판 뛰어보세요."
+      };
+    case "classroom":
+      return {
+        frame: "#36566d",
+        panel: "#dcebf5",
+        floorA: "#b6d1e5",
+        floorB: "#9fc0d9",
+        deco: "#f9fbfd",
+        headline: "LEARNING STUDIO",
+        subline: "스터디와 세션을 위한 집중 공간입니다."
+      };
+    case "cafeteria":
+      return {
+        frame: "#4c6b3a",
+        panel: "#dfeec9",
+        floorA: "#b8d88c",
+        floorB: "#9dc16d",
+        deco: "#fffdf5",
+        headline: "CAMPUS CAFE",
+        subline: "식사 메이트와 편한 대화를 시작해보세요."
+      };
+    case DEFAULT_AREA_ID:
+    default:
+      return {
+        frame: "#6c4c35",
+        panel: "#efe0ca",
+        floorA: "#c89c68",
+        floorB: "#b68653",
+        deco: "#f6ead7",
+        headline: "JUNGLE MAIN LOBBY",
+        subline: "농구장, 교육장, 식당으로 이어지는 메인 허브입니다."
+      };
+  }
+}
 
-  ctx.fillStyle = "#6c4c35";
+function drawScene(ctx, areaId) {
+  const theme = getAreaTheme(areaId);
+  const meta = AREA_META[areaId] || AREA_META[DEFAULT_AREA_ID];
+
+  ctx.clearRect(0, 0, MAP.width, MAP.height);
+  ctx.fillStyle = theme.frame;
   ctx.fillRect(0, 0, MAP.width, MAP.height);
 
-  ctx.fillStyle = wall;
+  ctx.fillStyle = theme.panel;
   roundRect(ctx, 28, 28, MAP.width - 56, MAP.height - 56, 24);
   ctx.fill();
 
   for (let y = 64; y < MAP.height - 64; y += MAP.tile) {
     for (let x = 64; x < MAP.width - 64; x += MAP.tile) {
-      ctx.fillStyle = (x / MAP.tile + y / MAP.tile) % 2 === 0 ? woodA : woodB;
+      ctx.fillStyle = (x / MAP.tile + y / MAP.tile) % 2 === 0 ? theme.floorA : theme.floorB;
       roundRect(ctx, x, y, MAP.tile - 6, MAP.tile - 6, 10);
       ctx.fill();
     }
   }
 
-  ctx.fillStyle = trim;
-  roundRect(ctx, 510, 86, 580, 150, 20);
+  ctx.fillStyle = theme.frame;
+  roundRect(ctx, 520, 82, 560, 148, 22);
   ctx.fill();
-  ctx.fillStyle = "#f6ead7";
-  roundRect(ctx, 542, 108, 516, 106, 16);
-  ctx.fill();
-
-  ctx.fillStyle = "#9b7047";
-  roundRect(ctx, 660, 236, 280, 48, 20);
+  ctx.fillStyle = theme.deco;
+  roundRect(ctx, 548, 106, 504, 102, 16);
   ctx.fill();
 
-  const deskYRows = [340, 500, 660];
-  deskYRows.forEach((rowY, rowIndex) => {
-    for (let index = 0; index < 5; index += 1) {
-      const x = 210 + index * 230 + (rowIndex % 2 === 0 ? 0 : 48);
-      ctx.fillStyle = "#8e623e";
-      roundRect(ctx, x, rowY, 138, 54, 14);
+  if (areaId === DEFAULT_AREA_ID) {
+    [
+      { x: 174, y: 360, label: "농구장 이동" },
+      { x: 620, y: 540, label: "교육장 이동" },
+      { x: 1050, y: 360, label: "식당 이동" }
+    ].forEach((portal) => {
+      ctx.fillStyle = "rgba(255, 248, 238, 0.78)";
+      roundRect(ctx, portal.x, portal.y, 260, 120, 24);
       ctx.fill();
-      ctx.fillStyle = "#f2e3cc";
-      roundRect(ctx, x + 8, rowY + 8, 122, 28, 10);
-      ctx.fill();
-      ctx.fillStyle = "#5a4030";
-      roundRect(ctx, x + 18, rowY + 50, 26, 24, 8);
-      ctx.fill();
-      roundRect(ctx, x + 94, rowY + 50, 26, 24, 8);
-      ctx.fill();
-    }
-  });
+      ctx.fillStyle = theme.frame;
+      ctx.font = "700 26px sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(portal.label, portal.x + 130, portal.y + 66);
+    });
+  } else {
+    const rows = areaId === "basketball" ? [330, 500, 670] : [330, 500];
+    rows.forEach((rowY, rowIndex) => {
+      for (let index = 0; index < 4; index += 1) {
+        const x = 210 + index * 280 + (rowIndex % 2 === 0 ? 0 : 40);
+        ctx.fillStyle = theme.frame;
+        roundRect(ctx, x, rowY, 170, 54, 14);
+        ctx.fill();
+        ctx.fillStyle = theme.deco;
+        roundRect(ctx, x + 8, rowY + 8, 154, 28, 10);
+        ctx.fill();
+      }
+    });
+  }
 
-  ctx.fillStyle = "#7f5b3d";
-  roundRect(ctx, 680, 778, 240, 84, 18);
-  ctx.fill();
-  ctx.fillStyle = "#fbf2e4";
-  roundRect(ctx, 704, 792, 192, 52, 16);
-  ctx.fill();
-
-  ctx.fillStyle = "#5d3d29";
+  ctx.fillStyle = theme.frame;
   ctx.font = "700 34px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText("KRAFTON JUNGLE CAMPUS", MAP.width / 2, 170);
+  ctx.fillText(theme.headline, MAP.width / 2, 168);
   ctx.font = "500 18px sans-serif";
-  ctx.fillText("따뜻한 분위기의 실시간 교육장", MAP.width / 2, 204);
+  ctx.fillText(theme.subline, MAP.width / 2, 202);
+
+  ctx.fillStyle = meta.accent;
+  roundRect(ctx, 84, 88, 250, 92, 20);
+  ctx.fill();
+  ctx.fillStyle = "rgba(255,255,255,0.92)";
+  ctx.font = "700 28px sans-serif";
+  ctx.fillText(meta.label, 209, 138);
 }
 
-export default function HallCanvas({ players }) {
+export default function HallCanvas({ currentArea, players }) {
   const canvasRef = useRef(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
-    drawWoodHall(ctx);
+    drawScene(ctx, currentArea);
     players.forEach((player) => {
       if (player?.position && player?.name) {
         drawAvatar(ctx, player);
       }
     });
-  }, [players]);
+  }, [currentArea, players]);
 
   return (
     <div className="canvas-shell">

@@ -1,4 +1,5 @@
-﻿export default function ChatPanel({
+export default function ChatPanel({
+  currentAreaLabel,
   messages,
   input,
   scope,
@@ -7,17 +8,20 @@
   onSubmit
 }) {
   return (
-    <aside className="chat-panel">
+    <section className="chat-panel">
       <div className="chat-header">
-        <h2>채팅</h2>
+        <div>
+          <h2>채팅</h2>
+          <p className="chat-header-meta">현재 공간: {currentAreaLabel}</p>
+        </div>
         <select value={scope} onChange={(event) => onScopeChange(event.target.value)}>
-          <option value="global">전체 채팅</option>
+          <option value="global">공간 전체 채팅</option>
           <option value="nearby">근처 채팅</option>
         </select>
       </div>
       <div className="chat-log">
         {messages.length === 0 ? (
-          <p className="chat-empty">첫 인사를 남겨보세요.</p>
+          <p className="chat-empty">이 공간에서 첫 인사를 남겨보세요.</p>
         ) : (
           messages.map((message) => (
             <div className="chat-item" key={message.id}>
@@ -37,6 +41,6 @@
         />
         <button type="submit">전송</button>
       </form>
-    </aside>
+    </section>
   );
 }

@@ -1,4 +1,4 @@
-﻿import { useState } from "react";
+import { useState } from "react";
 import { HALLS } from "../constants";
 
 export default function AuthScreen({ onSubmit }) {
@@ -24,8 +24,8 @@ export default function AuthScreen({ onSubmit }) {
           <p className="eyebrow">Jungle Campus</p>
           <h1>크래프톤 정글 캠퍼스에 오신걸 환영합니다.</h1>
           <p>
-            회원가입과 로그인을 하나의 빠른 입장 흐름으로 구성했습니다.
-            교육 과정, 교육실, 이름만 입력하면 바로 2D 공간에 접속할 수 있습니다.
+            로그인 후 메인 로비에 입장한 다음, 농구장, 교육장, 식당 같은 공간으로 이동할 수 있어요.
+            각 공간에서는 전용 파티 게시판으로 같이 움직일 멤버를 모집할 수 있습니다.
           </p>
         </div>
         <form className="auth-card" onSubmit={handleSubmit}>
@@ -57,7 +57,7 @@ export default function AuthScreen({ onSubmit }) {
               placeholder="이름을 입력하세요"
             />
           </label>
-          <button type="submit">교육장 입장</button>
+          <button type="submit">메인 로비 입장</button>
         </form>
       </div>
     </div>
