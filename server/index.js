@@ -2,6 +2,7 @@ import express from "express";
 import http from "http";
 import cors from "cors";
 import { Server } from "socket.io";
+import { createVoiceServer } from "./voice.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -28,6 +29,7 @@ const BASKETBALL_SHOT_ZONES = [
 const users = new Map();
 const partiesByArea = new Map();
 const basketballGames = new Map();
+const voiceServer = createVoiceServer({ io, users });
 
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
@@ -241,6 +243,8 @@ function removeUserFromParties(user) {
 }
 
 io.on("connection", (socket) => {
+  voiceServer.registerSocket(socket);
+
   socket.on("player:join", (payload, ack) => {
     const profile = sanitizeProfile(payload);
     if (!profile.name || !profile.classroom) {
@@ -255,6 +259,7 @@ io.on("connection", (socket) => {
       position,
       joinedAt: Date.now(),
       lastMessage: "",
+      micEnabled: false,
       lastBasketballShotAt: 0
     };
 
@@ -264,6 +269,7 @@ io.on("connection", (socket) => {
 
     socket.to(areaRoomKey).emit("player:joined", player);
     broadcastAreaState(profile.hall, profile.currentArea);
+    voiceServer.handleUserJoined(player);
     if (PARTY_ENABLED_AREAS.includes(profile.currentArea)) {
       broadcastPartyList(profile.hall, profile.currentArea);
     }
@@ -317,11 +323,14 @@ io.on("connection", (socket) => {
     io.to(nextRoomKey).emit("area:changed", {
       playerId: user.id,
       areaId: nextArea,
-      position: user.position
+      position: user.position,
+      users: roomUsers(user.hall, nextArea),
+      parties: getAreaParties(user.hall, nextArea).map(serializeParty)
     });
 
     broadcastAreaState(user.hall, previousArea);
     broadcastAreaState(user.hall, nextArea);
+    voiceServer.handleAreaChanged(previousArea, nextArea);
     if (PARTY_ENABLED_AREAS.includes(nextArea)) {
       broadcastPartyList(user.hall, nextArea);
     }
@@ -578,6 +587,7 @@ io.on("connection", (socket) => {
     if (user.currentArea === "basketball") {
       broadcastBasketballState(user.hall);
     }
+    voiceServer.handleUserDisconnected(user);
   });
 });
 

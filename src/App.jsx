@@ -5,6 +5,7 @@ import BasketballPanel from "./components/BasketballPanel";
 import ChatPanel from "./components/ChatPanel";
 import HallCanvas from "./components/HallCanvas";
 import PartyPanel from "./components/PartyPanel";
+import VoiceStatus from "./features/voice/VoiceStatus";
 import { createRandomAvatar } from "./avatar";
 import {
   findAreaByPosition,
@@ -21,6 +22,7 @@ import {
   SERVER_URL
 } from "./constants";
 import { clampPosition, loadSession, saveSession } from "./utils";
+import { useAreaVoice } from "./lib/webrtc/useAreaVoice";
 
 const socket = io(SERVER_URL, {
   autoConnect: false
@@ -41,6 +43,22 @@ function createSpawn() {
   };
 }
 
+function getSpawnForArea(areaId) {
+  if (areaId === DEFAULT_AREA_ID) {
+    return {
+      x: Math.round(MAP.width / 2),
+      y: Math.round(MAP.height / 2)
+    };
+  }
+
+  const area = getAreaById(areaId);
+  if (area?.preview?.spawn) {
+    return area.preview.spawn;
+  }
+
+  return createSpawn();
+}
+
 export default function App() {
   const [session, setSession] = useState(() => loadSession());
   const [players, setPlayers] = useState([]);
@@ -50,37 +68,13 @@ export default function App() {
   const [partyForm, setPartyForm] = useState({ title: "", maxMembers: 4 });
   const [chatInput, setChatInput] = useState("");
   const [chatScope, setChatScope] = useState("global");
-  const [status, setStatus] = useState("로그인 후 캠퍼스에 입장해보세요.");
+  const [status, setStatus] = useState("로그인 후 입장하세요.");
   const [previewAreaId, setPreviewAreaId] = useState(null);
-  const [partyPanelCollapsed, setPartyPanelCollapsed] = useState(false);
+  const [partyPanelCollapsed, setPartyPanelCollapsed] = useState(true);
   const [mobilePanel, setMobilePanel] = useState("party");
   const [basketballState, setBasketballState] = useState(EMPTY_BASKETBALL_STATE);
   const movementRef = useRef({});
   const joinedRef = useRef(false);
-
-  const currentArea = session?.currentArea || DEFAULT_AREA_ID;
-  const currentAreaMeta = AREA_META[currentArea] || AREA_META[DEFAULT_AREA_ID];
-
-  const self = useMemo(
-    () => players.find((player) => player.id === socket.id) || null,
-    [players]
-  );
-
-  const nearbyArea = useMemo(
-    () => (currentArea === DEFAULT_AREA_ID ? findAreaByPosition(self?.position) : null),
-    [currentArea, self?.position]
-  );
-
-  const previewArea = useMemo(
-    () => (currentArea === DEFAULT_AREA_ID ? getAreaById(previewAreaId) || nearbyArea : null),
-    [currentArea, previewAreaId, nearbyArea]
-  );
-
-  const currentAreaConfig = useMemo(() => getAreaById(currentArea), [currentArea]);
-  const currentShotZone = useMemo(
-    () => (currentArea === "basketball" ? getBasketballShotZoneAtPosition(self?.position) : null),
-    [currentArea, self?.position]
-  );
 
   function resetSessionState(message) {
     joinedRef.current = false;
@@ -94,6 +88,33 @@ export default function App() {
     setBasketballState(EMPTY_BASKETBALL_STATE);
     setStatus(message);
   }
+
+  const currentArea = session?.currentArea || DEFAULT_AREA_ID;
+  const currentAreaMeta = AREA_META[currentArea] || AREA_META[DEFAULT_AREA_ID];
+
+  const self = useMemo(
+    () => players.find((player) => player.id === socket.id) || null,
+    [players]
+  );
+  const nearbyArea = useMemo(
+    () => (currentArea === DEFAULT_AREA_ID ? findAreaByPosition(self?.position) : null),
+    [currentArea, self?.position]
+  );
+  const previewArea = useMemo(
+    () => (currentArea === DEFAULT_AREA_ID ? getAreaById(previewAreaId) || nearbyArea : null),
+    [currentArea, previewAreaId, nearbyArea]
+  );
+  const currentAreaConfig = useMemo(() => getAreaById(currentArea), [currentArea]);
+  const currentShotZone = useMemo(
+    () => (currentArea === "basketball" ? getBasketballShotZoneAtPosition(self?.position) : null),
+    [currentArea, self?.position]
+  );
+
+  const voice = useAreaVoice({
+    socket,
+    selfId: self?.id || "",
+    enabled: Boolean(session && self)
+  });
 
   useEffect(() => {
     if (currentArea !== DEFAULT_AREA_ID) {
@@ -121,14 +142,22 @@ export default function App() {
     ) {
       handleAreaChange(DEFAULT_AREA_ID);
     }
-  }, [self?.position, currentArea, nearbyArea?.id, currentAreaConfig?.returnPortal]);
+  }, [self?.position, currentArea, nearbyArea?.id, currentAreaConfig?.returnPortal?.x]);
 
   useEffect(() => {
     if (!session) {
+      joinedRef.current = false;
+      setPreviewAreaId(null);
+      setBasketballState(EMPTY_BASKETBALL_STATE);
+      if (socket.connected) {
+        socket.disconnect();
+      }
       return undefined;
     }
 
-    socket.connect();
+    if (!socket.connected) {
+      socket.connect();
+    }
 
     function handleAreaState(payload) {
       if (payload?.areaId === currentArea) {
@@ -143,50 +172,58 @@ export default function App() {
         }
         return [...current, player];
       });
+      setStatus(`${player.name} 님이 입장했습니다.`);
     }
 
-    function handlePlayerMoved(payload) {
+    function handlePlayerMoved({ id, position }) {
       setPlayers((current) =>
         current.map((player) =>
-          player.id === payload.id ? { ...player, position: payload.position } : player
+          player.id === id ? { ...player, position } : player
         )
       );
     }
 
-    function handlePlayerLeft(payload) {
-      setPlayers((current) => current.filter((player) => player.id !== payload.id));
+    function handlePlayerLeft({ id }) {
+      setPlayers((current) => current.filter((player) => player.id !== id));
     }
 
-    function handlePlayerStatus(payload) {
+    function handlePlayerStatus({ id, lastMessage }) {
       setPlayers((current) =>
         current.map((player) =>
-          player.id === payload.id ? { ...player, lastMessage: payload.lastMessage } : player
+          player.id === id ? { ...player, lastMessage } : player
         )
       );
     }
 
-    function handleChatMessage(payload) {
-      setMessages((current) => [...current.slice(-59), payload]);
+    function handleChatMessage(message) {
+      setMessages((current) => [...current.slice(-39), message]);
     }
 
-    function handlePartyList(payload) {
-      setParties(payload || []);
+    function handlePartyList(nextParties) {
+      setParties(nextParties || []);
     }
 
-    function handleAreaChanged(payload) {
-      if (payload?.playerId === socket.id) {
-        const nextSession = {
-          ...session,
-          currentArea: payload.areaId,
-          position: payload.position || createSpawn()
-        };
-        setSession(nextSession);
-        saveSession(nextSession);
+    function handleAreaChanged(response) {
+      if (response?.playerId !== socket.id) {
+        return;
       }
+
+      setPlayers(response.users || []);
+      setParties(response.parties || []);
+      setMessages([]);
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              currentArea: response.areaId,
+              position: response.position || getSpawnForArea(response.areaId)
+            }
+          : current
+      );
     }
 
-    function handleBasketballState(payload) {
-      setBasketballState(payload || EMPTY_BASKETBALL_STATE);
+    function handleBasketballState(nextState) {
+      setBasketballState(nextState || EMPTY_BASKETBALL_STATE);
     }
 
     socket.on("area:state", handleAreaState);
@@ -217,28 +254,47 @@ export default function App() {
       return;
     }
 
-    socket.connect();
-    socket.emit("player:join", session, (response) => {
+    if (!socket.connected) {
+      socket.connect();
+    }
+
+    const payload = {
+      ...session,
+      currentArea: session.currentArea || DEFAULT_AREA_ID,
+      avatar: session.avatar || createRandomAvatar(),
+      position: session.position || getSpawnForArea(session.currentArea || DEFAULT_AREA_ID)
+    };
+
+    socket.emit("player:join", payload, (response) => {
       if (!response?.ok) {
-        resetSessionState(response?.message || "입장에 실패했습니다.");
+        setStatus(response?.message || "입장에 실패했습니다.");
+        return;
+      }
+
+      if (!response?.player || !response.player.hall) {
+        resetSessionState("세션 정보가 올바르지 않아 다시 로그인해주세요.");
         return;
       }
 
       joinedRef.current = true;
       const nextSession = {
-        ...session,
+        ...payload,
         currentArea: response.player.currentArea,
         position: response.player.position
       };
-      setSession(nextSession);
       saveSession(nextSession);
+      setSession(nextSession);
       setPlayers(response.users || []);
       setParties(response.parties || []);
       setMessages([]);
-      setStatus(response.message || "캠퍼스에 입장했습니다.");
       setBasketballState(response.basketball || EMPTY_BASKETBALL_STATE);
+      setStatus(
+        `${response.player.hall} · ${
+          AREA_META[response.player.currentArea]?.label || currentAreaMeta.label
+        }에 입장했습니다.`
+      );
     });
-  }, [session]);
+  }, [session, currentAreaMeta.label]);
 
   useEffect(() => {
     if (!self) {
@@ -246,9 +302,23 @@ export default function App() {
     }
 
     function handleKeyDown(event) {
-      if (event.key === "Escape" && currentArea !== DEFAULT_AREA_ID) {
-        event.preventDefault();
-        handleAreaChange(DEFAULT_AREA_ID);
+      const tagName = event.target?.tagName || "";
+      if (
+        ["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(tagName) ||
+        event.metaKey ||
+        event.ctrlKey ||
+        event.altKey
+      ) {
+        return;
+      }
+
+      if (event.key === "Escape") {
+        if (currentArea !== DEFAULT_AREA_ID) {
+          event.preventDefault();
+          handleAreaChange(DEFAULT_AREA_ID);
+          return;
+        }
+        setPreviewAreaId(null);
         return;
       }
 
@@ -302,7 +372,7 @@ export default function App() {
       window.removeEventListener("keyup", handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [self, currentArea, currentShotZone, basketballState.active]);
+  }, [self, currentArea, nearbyArea, currentShotZone, basketballState.active]);
 
   function handleAuthSubmit(form) {
     joinedRef.current = false;
@@ -310,7 +380,7 @@ export default function App() {
       ...form,
       currentArea: DEFAULT_AREA_ID,
       avatar: createRandomAvatar(),
-      position: createSpawn()
+      position: getSpawnForArea(DEFAULT_AREA_ID)
     };
     setSession(nextSession);
     saveSession(nextSession);
@@ -322,7 +392,7 @@ export default function App() {
   }
 
   function handleLogout() {
-    resetSessionState("로그아웃했습니다.");
+    resetSessionState("로그아웃되었습니다.");
   }
 
   function handleAreaChange(areaId) {
@@ -335,7 +405,7 @@ export default function App() {
       "area:change",
       {
         areaId,
-        position: createSpawn()
+        position: getSpawnForArea(areaId)
       },
       (response) => {
         if (!response?.ok) {
@@ -346,7 +416,7 @@ export default function App() {
         const nextSession = {
           ...session,
           currentArea: response.areaId,
-          position: response.position || createSpawn()
+          position: response.position || getSpawnForArea(response.areaId)
         };
         setSession(nextSession);
         saveSession(nextSession);
@@ -354,9 +424,9 @@ export default function App() {
         setParties(response.parties || []);
         setMessages([]);
         setPreviewAreaId(null);
-        if (response.areaId !== "basketball") {
-          setBasketballState(EMPTY_BASKETBALL_STATE);
-        }
+        setBasketballState(
+          response.areaId === "basketball" ? basketballState : EMPTY_BASKETBALL_STATE
+        );
         setStatus(`${AREA_META[response.areaId]?.label || response.areaId}로 이동했습니다.`);
       }
     );
@@ -369,7 +439,7 @@ export default function App() {
   function handlePartyCreate(event) {
     event.preventDefault();
     socket.emit("party:create", partyForm, (response) => {
-      setPartyMessage(response?.message || "파티 생성 요청을 보냈습니다.");
+      setPartyMessage(response?.message || "파티 생성 요청이 완료되었습니다.");
       if (response?.ok) {
         setPartyForm({ title: "", maxMembers: 4 });
       }
@@ -378,7 +448,7 @@ export default function App() {
 
   function handlePartyJoin(partyId) {
     socket.emit("party:join", { partyId }, (response) => {
-      setPartyMessage(response?.message || "파티 참가 요청을 보냈습니다.");
+      setPartyMessage(response?.message || "파티 참가 요청이 완료되었습니다.");
     });
   }
 
@@ -434,9 +504,7 @@ export default function App() {
           </button>
         </div>
       </header>
-      <main
-        className={`layout layout-three-column${partyPanelCollapsed ? " is-party-collapsed" : ""}`}
-      >
+      <main className={`layout layout-three-column${partyPanelCollapsed ? " is-party-collapsed" : ""}`}>
         <section className="hall-panel">
           <div className="hall-toolbar">
             <p>{status}</p>
@@ -450,6 +518,14 @@ export default function App() {
                     : "메인 로비에서 원하는 공간으로 이동해보세요."}
             </p>
           </div>
+          <VoiceStatus
+            currentAreaLabel={currentAreaMeta.label}
+            micEnabled={voice.micEnabled}
+            soundEnabled={voice.soundEnabled}
+            peerSummaries={voice.peerSummaries}
+            remoteStreams={voice.remoteStreams}
+            voiceError={voice.voiceError}
+          />
           {currentArea === "basketball" ? (
             <BasketballPanel
               gameState={basketballState}
