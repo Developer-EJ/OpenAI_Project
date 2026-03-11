@@ -9,21 +9,18 @@
 }
 
 export function createVoiceServer({ io, users }) {
-  function getAreaVoiceUsers(hall, areaId) {
-    return Array.from(users.values()).filter(
-      (user) => user.hall === hall && user.currentArea === areaId
-    );
+  function getAreaVoiceUsers(areaId) {
+    return Array.from(users.values()).filter((user) => user.currentArea === areaId);
   }
 
-  function broadcastVoicePeers(hall, areaId) {
-    if (!hall || !areaId) {
+  function broadcastVoicePeers(_hall, areaId) {
+    if (!areaId) {
       return;
     }
 
-    const peers = getAreaVoiceUsers(hall, areaId).map(serializeVoicePeer);
+    const peers = getAreaVoiceUsers(areaId).map(serializeVoicePeer);
     peers.forEach((peer) => {
       io.to(peer.id).emit("voice:peers", {
-        hall,
         areaId,
         peers
       });
@@ -38,10 +35,7 @@ export function createVoiceServer({ io, users }) {
       return;
     }
 
-    if (
-      sourceUser.hall !== targetUser.hall ||
-      sourceUser.currentArea !== targetUser.currentArea
-    ) {
+    if (sourceUser.currentArea !== targetUser.currentArea) {
       return;
     }
 
@@ -71,9 +65,8 @@ export function createVoiceServer({ io, users }) {
         return;
       }
 
-      const peers = getAreaVoiceUsers(user.hall, user.currentArea).map(serializeVoicePeer);
+      const peers = getAreaVoiceUsers(user.currentArea).map(serializeVoicePeer);
       io.to(socket.id).emit("voice:peers", {
-        hall: user.hall,
         areaId: user.currentArea,
         peers
       });
@@ -88,11 +81,7 @@ export function createVoiceServer({ io, users }) {
       }
 
       const targetUser = users.get(payload.targetId);
-      if (
-        !targetUser ||
-        targetUser.hall !== user.hall ||
-        targetUser.currentArea !== user.currentArea
-      ) {
+      if (!targetUser || targetUser.currentArea !== user.currentArea) {
         ack?.({ ok: false, message: "같은 공간의 사용자에게만 연결할 수 있습니다." });
         return;
       }
@@ -111,11 +100,7 @@ export function createVoiceServer({ io, users }) {
       }
 
       const targetUser = users.get(payload.targetId);
-      if (
-        !targetUser ||
-        targetUser.hall !== user.hall ||
-        targetUser.currentArea !== user.currentArea
-      ) {
+      if (!targetUser || targetUser.currentArea !== user.currentArea) {
         ack?.({ ok: false, message: "같은 공간의 사용자에게만 요청할 수 있습니다." });
         return;
       }
