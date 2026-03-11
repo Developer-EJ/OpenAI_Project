@@ -22,10 +22,10 @@ export default function AuthScreen({ onSubmit }) {
       <div className="auth-panel">
         <div className="hero-copy">
           <p className="eyebrow">Jungle Campus</p>
-          <h1>크래프톤 정글 캠퍼스에 오신걸 환영합니다.</h1>
+          <h1>온라인 정글 캠퍼스에 오신 것을 환영합니다.</h1>
           <p>
-            로그인 후 메인 로비에 입장한 다음, 농구장, 교육장, 식당 같은 공간으로 이동할 수 있어요.
-            각 공간에서는 전용 파티 게시판으로 같이 움직일 멤버를 모집할 수 있습니다.
+            로그인하면 메인 로비에 입장한 뒤, 농구장, 교육장, 식당 같은 공간으로 이동할 수 있어요.
+            각 공간에서는 전용 파티 게시판으로 같이 활동할 멤버를 모집할 수 있습니다.
           </p>
         </div>
         <form className="auth-card" onSubmit={handleSubmit}>

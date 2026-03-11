@@ -1,7 +1,7 @@
 import { DEFAULT_AREA_ID, MAP } from "./constants";
 
 const SESSION_STORAGE_KEY = "jungle-campus-session";
-const SESSION_VERSION = 2;
+const SESSION_VERSION = 3;
 
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));

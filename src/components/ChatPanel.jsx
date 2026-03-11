@@ -21,7 +21,7 @@ export default function ChatPanel({
       </div>
       <div className="chat-log">
         {messages.length === 0 ? (
-          <p className="chat-empty">이 공간에서 첫 인사를 남겨보세요.</p>
+          <p className="chat-empty">이 공간에서 먼저 인사를 건네보세요.</p>
         ) : (
           messages.map((message) => (
             <div className="chat-item" key={message.id}>

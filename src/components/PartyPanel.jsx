@@ -80,7 +80,7 @@ export default function PartyPanel({
                   value={createForm.title}
                   maxLength={32}
                   onChange={(event) => onCreateFormChange("title", event.target.value)}
-                  placeholder="예: 3:3 농구 한 판 하실 분"
+                  placeholder="예: 3:3 농구 같이 하실 분"
                 />
               </label>
               <label>
@@ -101,7 +101,7 @@ export default function PartyPanel({
           ) : (
             <div className="party-lobby-card">
               <strong>메인 로비입니다.</strong>
-              <p>여기서는 파티를 만들 수 없어요. 원하는 공간으로 이동한 뒤 파티를 생성해보세요.</p>
+              <p>여기서는 파티를 만들 수 없어요. 원하는 공간으로 이동해서 파티를 생성해보세요.</p>
             </div>
           )}
 
@@ -109,7 +109,7 @@ export default function PartyPanel({
             {!canCreateParty ? null : parties.length === 0 ? (
               <div className="party-empty-card">
                 <strong>첫 번째 파티를 만들어보세요.</strong>
-                <p>현재 공간에 등록된 모집글이 없습니다.</p>
+                <p>현재 공간에는 등록된 모집글이 없습니다.</p>
               </div>
             ) : (
               parties.map((party) => {
@@ -129,7 +129,8 @@ export default function PartyPanel({
                       </span>
                     </div>
                     <p className="party-card-meta">
-                      방장 {party.ownerName} · {new Date(party.createdAt).toLocaleTimeString("ko-KR", {
+                      방장 {party.ownerName} ·{" "}
+                      {new Date(party.createdAt).toLocaleTimeString("ko-KR", {
                         hour: "2-digit",
                         minute: "2-digit"
                       })}
@@ -143,7 +144,7 @@ export default function PartyPanel({
                       {joined
                         ? "이미 참가 중인 파티입니다."
                         : isFull
-                          ? "정원이 꽉 찬 파티입니다."
+                          ? "정원이 모두 찼습니다."
                           : "더블클릭해서 참가하기"}
                     </p>
                   </button>
