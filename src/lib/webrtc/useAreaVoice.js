@@ -1,7 +1,9 @@
 ﻿import { useEffect, useRef, useState } from "react";
-import { getIceServerConfig } from "../../constants";
+import { ICE_SERVERS } from "../../constants";
 
-const ICE_SERVERS = getIceServerConfig();
+function logVoice(event, payload = {}) {
+  console.log("[voice]", event, payload);
+}
 
 function shouldInitiateOffer(selfId, peerId) {
   return String(selfId) > String(peerId);
@@ -57,6 +59,11 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
       return;
     }
 
+    logVoice("close-peer-connection", {
+      peerId,
+      connectionState: entry.pc.connectionState,
+      iceConnectionState: entry.pc.iceConnectionState
+    });
     entry.pc.onicecandidate = null;
     entry.pc.ontrack = null;
     entry.pc.onconnectionstatechange = null;
@@ -79,11 +86,15 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
 
   async function ensureLocalStream() {
     if (localStreamRef.current) {
+      logVoice("reuse-local-stream");
       return localStreamRef.current;
     }
 
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
     localStreamRef.current = stream;
+    logVoice("local-stream-ready", {
+      trackIds: stream.getAudioTracks().map((track) => track.id)
+    });
     return stream;
   }
 
@@ -114,11 +125,21 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
       return existing;
     }
 
+    logVoice("create-peer-connection", {
+      peerId,
+      iceServerCount: ICE_SERVERS.iceServers.length,
+      urls: ICE_SERVERS.iceServers.map((server) => server.urls)
+    });
     const pc = new RTCPeerConnection(ICE_SERVERS);
     const remoteStream = new MediaStream();
     const audioTransceiver = pc.addTransceiver("audio", { direction: "recvonly" });
 
     pc.ontrack = (event) => {
+      logVoice("remote-track", {
+        peerId,
+        trackKind: event.track?.kind,
+        streamCount: event.streams.length
+      });
       const audioTracks = [];
 
       if (event.track?.kind === "audio") {
@@ -151,9 +172,14 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
 
     pc.onicecandidate = (event) => {
       if (!event.candidate) {
+        logVoice("ice-candidate-complete", { peerId });
         return;
       }
 
+      logVoice("emit-candidate", {
+        peerId,
+        candidate: event.candidate.candidate
+      });
       socket.emit("voice:signal", {
         targetId: peerId,
         signal: {
@@ -164,9 +190,22 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
     };
 
     pc.onconnectionstatechange = () => {
+      logVoice("connection-state-change", {
+        peerId,
+        connectionState: pc.connectionState,
+        iceConnectionState: pc.iceConnectionState
+      });
       if (["closed", "failed", "disconnected"].includes(pc.connectionState)) {
         closePeerConnection(peerId);
       }
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      logVoice("ice-connection-state-change", {
+        peerId,
+        connectionState: pc.connectionState,
+        iceConnectionState: pc.iceConnectionState
+      });
     };
 
     const next = { pc, remoteStream, audioTransceiver };
@@ -175,10 +214,15 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
   }
 
   async function createOffer(peerId) {
+    logVoice("create-offer-start", { peerId });
     const entry = ensurePeerConnection(peerId);
     await syncLocalTrack(entry);
     const offer = await entry.pc.createOffer();
     await entry.pc.setLocalDescription(offer);
+    logVoice("set-local-description", {
+      peerId,
+      type: entry.pc.localDescription?.type
+    });
     socket.emit("voice:signal", {
       targetId: peerId,
       signal: {
@@ -189,6 +233,11 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
   }
 
   async function requestNegotiation(peerId) {
+    logVoice("request-negotiation", {
+      peerId,
+      selfId,
+      shouldInitiate: shouldInitiateOffer(selfId, peerId)
+    });
     if (shouldInitiateOffer(selfId, peerId)) {
       await createOffer(peerId);
       return;
@@ -203,12 +252,17 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
 
   async function toggleMic() {
     const nextMicEnabled = !micEnabled;
+    logVoice("toggle-mic", { nextMicEnabled });
 
     if (nextMicEnabled) {
       try {
         await ensureLocalStream();
         setVoiceError("");
       } catch (error) {
+        logVoice("toggle-mic-error", {
+          name: error?.name,
+          message: error?.message
+        });
         setVoiceError(describeMediaError(error));
         setMicEnabled(false);
         socket.emit("voice:state", { micEnabled: false });
@@ -229,6 +283,10 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
 
   async function syncDesiredPeers(peerIds) {
     const nextPeerIds = new Set((peerIds || []).filter((peerId) => peerId && peerId !== selfId));
+    logVoice("sync-desired-peers", {
+      selfId,
+      peerIds: Array.from(nextPeerIds)
+    });
     Array.from(connectionsRef.current.keys()).forEach((peerId) => {
       if (!nextPeerIds.has(peerId)) {
         closePeerConnection(peerId);
@@ -285,6 +343,11 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
 
     async function handleVoicePeers({ peers }) {
       const nextPeers = (peers || []).filter((peer) => peer.id !== selfId);
+      logVoice("voice-peers", {
+        selfId,
+        peerIds: nextPeers.map((peer) => peer.id),
+        micPeers: nextPeers.filter((peer) => peer.micEnabled).map((peer) => peer.id)
+      });
       setPeerSummaries(nextPeers);
       const desiredPeerIds = Array.from(
         new Set([
@@ -300,15 +363,31 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
         return;
       }
 
+      logVoice("voice-signal-received", {
+        fromId,
+        type: signal.type,
+        descriptionType: signal.description?.type
+      });
       const entry = ensurePeerConnection(fromId);
 
       if (signal.type === "candidate") {
         if (entry.pc.remoteDescription) {
-          await entry.pc.addIceCandidate(signal.candidate).catch(() => undefined);
+          await entry.pc.addIceCandidate(signal.candidate).catch((error) => {
+            logVoice("add-ice-candidate-error", {
+              fromId,
+              message: error?.message
+            });
+            return undefined;
+          });
+          logVoice("add-ice-candidate", { fromId });
         } else {
           const pending = pendingIceRef.current.get(fromId) || [];
           pending.push(signal.candidate);
           pendingIceRef.current.set(fromId, pending);
+          logVoice("queue-ice-candidate", {
+            fromId,
+            pendingCount: pending.length
+          });
         }
         return;
       }
@@ -319,11 +398,19 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
 
       await syncLocalTrack(entry);
       await entry.pc.setRemoteDescription(signal.description);
+      logVoice("set-remote-description", {
+        fromId,
+        type: signal.description.type
+      });
       await flushPendingIce(fromId);
 
       if (signal.description.type === "offer") {
         const answer = await entry.pc.createAnswer();
         await entry.pc.setLocalDescription(answer);
+        logVoice("set-local-description", {
+          peerId: fromId,
+          type: entry.pc.localDescription?.type
+        });
         socket.emit("voice:signal", {
           targetId: fromId,
           signal: {
@@ -335,6 +422,11 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
     }
 
     function handleRenegotiateRequest({ fromId }) {
+      logVoice("renegotiate-request", {
+        fromId,
+        selfId,
+        shouldInitiate: shouldInitiateOffer(selfId, fromId)
+      });
       if (!fromId || !shouldInitiateOffer(selfId, fromId)) {
         return;
       }
@@ -346,6 +438,7 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
     socket.on("voice:peers", handleVoicePeers);
     socket.on("voice:signal", handleVoiceSignal);
     socket.on("voice:renegotiate-request", handleRenegotiateRequest);
+    logVoice("voice-sync-start", { selfId });
     socket.emit("voice:sync");
     socket.emit("voice:state", { micEnabled: false });
 

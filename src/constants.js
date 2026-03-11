@@ -59,28 +59,40 @@ function getDefaultServerUrl() {
 export const SERVER_URL =
   import.meta.env.VITE_SERVER_URL || getDefaultServerUrl();
 
-function parseIceUrls(value) {
-  return String(value || "")
+function parseIceUrls(rawValue) {
+  return String(rawValue || "")
     .split(",")
-    .map((entry) => entry.trim())
+    .map((value) => value.trim())
     .filter(Boolean);
 }
 
-export function getIceServerConfig() {
-  const stunUrls = parseIceUrls(import.meta.env.VITE_STUN_URLS);
-  const turnUrls = parseIceUrls(import.meta.env.VITE_TURN_URLS);
-  const turnUsername = String(import.meta.env.VITE_TURN_USERNAME || "").trim();
-  const turnCredential = String(import.meta.env.VITE_TURN_CREDENTIAL || "").trim();
+function getConfiguredIceUrls(rawValue, fallback = []) {
+  if (rawValue === undefined) {
+    return fallback;
+  }
 
+  return parseIceUrls(rawValue);
+}
+
+function buildIceServers() {
+  const stunUrls = getConfiguredIceUrls(
+    import.meta.env.VITE_STUN_URLS,
+    DEFAULT_STUN_URLS
+  );
+  const turnUrls = getConfiguredIceUrls(import.meta.env.VITE_TURN_URLS);
+  const turnUsername = import.meta.env.VITE_TURN_USERNAME?.trim();
+  const turnCredential = import.meta.env.VITE_TURN_CREDENTIAL?.trim();
   const iceServers = [];
 
-  iceServers.push({
-    urls: stunUrls.length > 0 ? stunUrls : DEFAULT_STUN_URLS
-  });
+  if (stunUrls.length > 0) {
+    iceServers.push({
+      urls: stunUrls.length === 1 ? stunUrls[0] : stunUrls
+    });
+  }
 
   if (turnUrls.length > 0 && turnUsername && turnCredential) {
     iceServers.push({
-      urls: turnUrls,
+      urls: turnUrls.length === 1 ? turnUrls[0] : turnUrls,
       username: turnUsername,
       credential: turnCredential
     });
@@ -88,3 +100,5 @@ export function getIceServerConfig() {
 
   return { iceServers };
 }
+
+export const ICE_SERVERS = buildIceServers();

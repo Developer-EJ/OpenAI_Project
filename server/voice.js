@@ -8,6 +8,10 @@ function serializeVoicePeer(user) {
   };
 }
 
+function logVoice(event, payload = {}) {
+  console.log("[voice]", event, payload);
+}
+
 export function createVoiceServer({ io, users }) {
   function getAreaVoiceUsers(areaId) {
     return Array.from(users.values()).filter((user) => user.currentArea === areaId);
@@ -19,6 +23,11 @@ export function createVoiceServer({ io, users }) {
     }
 
     const peers = getAreaVoiceUsers(areaId).map(serializeVoicePeer);
+    logVoice("broadcast-voice-peers", {
+      areaId,
+      peerIds: peers.map((peer) => peer.id),
+      micPeers: peers.filter((peer) => peer.micEnabled).map((peer) => peer.id)
+    });
     peers.forEach((peer) => {
       io.to(peer.id).emit("voice:peers", {
         areaId,
@@ -32,13 +41,35 @@ export function createVoiceServer({ io, users }) {
     const targetUser = users.get(targetId);
 
     if (!sourceUser || !targetUser) {
+      logVoice("relay-skip-missing-user", {
+        eventName,
+        sourceId,
+        targetId,
+        hasSourceUser: Boolean(sourceUser),
+        hasTargetUser: Boolean(targetUser)
+      });
       return;
     }
 
     if (sourceUser.currentArea !== targetUser.currentArea) {
+      logVoice("relay-skip-area-mismatch", {
+        eventName,
+        sourceId,
+        targetId,
+        sourceArea: sourceUser.currentArea,
+        targetArea: targetUser.currentArea
+      });
       return;
     }
 
+    logVoice("relay-voice-event", {
+      eventName,
+      sourceId,
+      targetId,
+      areaId: sourceUser.currentArea,
+      signalType: payload?.signal?.type,
+      descriptionType: payload?.signal?.description?.type
+    });
     io.to(targetId).emit(eventName, {
       fromId: sourceId,
       ...payload
@@ -53,6 +84,11 @@ export function createVoiceServer({ io, users }) {
         return;
       }
 
+      logVoice("voice-state", {
+        socketId: socket.id,
+        areaId: user.currentArea,
+        micEnabled: Boolean(payload.micEnabled)
+      });
       user.micEnabled = Boolean(payload.micEnabled);
       broadcastVoicePeers(user.currentArea);
       ack?.({ ok: true, micEnabled: user.micEnabled });
@@ -66,6 +102,11 @@ export function createVoiceServer({ io, users }) {
       }
 
       const peers = getAreaVoiceUsers(user.currentArea).map(serializeVoicePeer);
+      logVoice("voice-sync", {
+        socketId: socket.id,
+        areaId: user.currentArea,
+        peerIds: peers.map((peer) => peer.id)
+      });
       io.to(socket.id).emit("voice:peers", {
         areaId: user.currentArea,
         peers
@@ -75,6 +116,12 @@ export function createVoiceServer({ io, users }) {
 
     socket.on("voice:signal", (payload = {}, ack) => {
       const user = users.get(socket.id);
+      logVoice("voice-signal-received", {
+        socketId: socket.id,
+        targetId: payload.targetId,
+        signalType: payload.signal?.type,
+        descriptionType: payload.signal?.description?.type
+      });
       if (!user || !payload.targetId || !payload.signal) {
         ack?.({ ok: false });
         return;
@@ -94,6 +141,10 @@ export function createVoiceServer({ io, users }) {
 
     socket.on("voice:renegotiate-request", (payload = {}, ack) => {
       const user = users.get(socket.id);
+      logVoice("voice-renegotiate-request", {
+        socketId: socket.id,
+        targetId: payload.targetId
+      });
       if (!user || !payload.targetId) {
         ack?.({ ok: false });
         return;

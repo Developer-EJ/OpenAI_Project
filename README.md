@@ -15,7 +15,6 @@ Jungle Campus는 교육 과정 구성원이 같은 가상 캠퍼스에 접속해
 - 실제 실시간 동기화 기준은 `hall`이 아니라 `area`입니다.
 - 같은 `area`에 있는 사용자끼리만 위치, 채팅, 파티, 음성 연결이 맞물립니다.
 
-<<<<<<< HEAD
 ## 주요 기능
 
 - 교육 과정 선택과 로그인
@@ -69,9 +68,9 @@ Jungle Campus는 교육 과정 구성원이 같은 가상 캠퍼스에 접속해
 ```env
 VITE_SERVER_URL=https://your-socket-server.example.com
 VITE_STUN_URLS=stun:stun.l.google.com:19302
-VITE_TURN_URLS=
-VITE_TURN_USERNAME=
-VITE_TURN_CREDENTIAL=
+VITE_TURN_URLS=turn:15.164.94.50:3478?transport=udp,turn:15.164.94.50:3478?transport=tcp
+VITE_TURN_USERNAME=jungleturn
+VITE_TURN_CREDENTIAL=teXrl7YDubiCPkCmi7RHc2gJm/1pp/On
 ```
 
 ### 백엔드
