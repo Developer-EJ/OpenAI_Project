@@ -16,7 +16,7 @@ export const AREA_DEFINITIONS = {
     accent: "#d4773f",
     portal: {
       x: 268,
-      y: 744,
+      y: 676,
       radius: 84,
       label: "COURT"
     },
@@ -70,7 +70,7 @@ export const AREA_DEFINITIONS = {
     accent: "#4f7b65",
     portal: {
       x: 1318,
-      y: 744,
+      y: 676,
       radius: 84,
       label: "CLASS"
     },

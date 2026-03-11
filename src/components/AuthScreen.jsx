@@ -6,6 +6,29 @@ import {
 } from "../avatar";
 import { HALLS } from "../constants";
 
+const PREVIEW_PIXELS = [
+  { x: 2, y: 0, w: 5, h: 1, color: "hair" },
+  { x: 1, y: 1, w: 7, h: 1, color: "hair" },
+  { x: 1, y: 2, w: 1, h: 1, color: "hair" },
+  { x: 7, y: 2, w: 1, h: 1, color: "hair" },
+  { x: 2, y: 2, w: 5, h: 3, color: "skin" },
+  { x: 1, y: 3, w: 1, h: 1, color: "skin" },
+  { x: 7, y: 3, w: 1, h: 1, color: "skin" },
+  { x: 3, y: 5, w: 3, h: 1, color: "skin" },
+  { x: 3, y: 3, w: 1, h: 1, color: "eye" },
+  { x: 5, y: 3, w: 1, h: 1, color: "eye" },
+  { x: 2, y: 6, w: 5, h: 1, color: "top" },
+  { x: 1, y: 7, w: 7, h: 2, color: "top" },
+  { x: 2, y: 9, w: 5, h: 1, color: "top" },
+  { x: 3, y: 7, w: 3, h: 1, color: "accent" },
+  { x: 1, y: 9, w: 1, h: 2, color: "skin" },
+  { x: 7, y: 9, w: 1, h: 2, color: "skin" },
+  { x: 2, y: 10, w: 2, h: 3, color: "pants" },
+  { x: 5, y: 10, w: 2, h: 3, color: "pants" },
+  { x: 1, y: 13, w: 2, h: 1, color: "shoe" },
+  { x: 5, y: 13, w: 2, h: 1, color: "shoe" }
+];
+
 export default function AuthScreen({ onSubmit }) {
   const defaultTop = TOP_COLOR_OPTIONS[0];
   const [form, setForm] = useState({
@@ -84,23 +107,33 @@ export default function AuthScreen({ onSubmit }) {
               <span className="avatar-picker-label">캐릭터 미리보기</span>
               <div className="avatar-preview">
                 <div className="avatar-preview-shadow" />
-                <div
-                  className="avatar-preview-body"
-                  style={{ background: previewAvatar.top }}
-                >
-                  <div
-                    className="avatar-preview-accent"
-                    style={{ background: previewAvatar.accent }}
-                  />
+                <div className="avatar-preview-pixel-art">
+                  {PREVIEW_PIXELS.map((pixel, index) => {
+                    const palette = {
+                      hair: previewAvatar.hair,
+                      skin: previewAvatar.skin,
+                      top: previewAvatar.top,
+                      accent: previewAvatar.accent,
+                      eye: "#241711",
+                      pants: "#2b3430",
+                      shoe: "#1c241f"
+                    };
+
+                    return (
+                      <span
+                        key={`${pixel.color}-${pixel.x}-${pixel.y}-${index}`}
+                        className="avatar-preview-pixel"
+                        style={{
+                          left: `${pixel.x * 10}px`,
+                          top: `${pixel.y * 10}px`,
+                          width: `${pixel.w * 10}px`,
+                          height: `${pixel.h * 10}px`,
+                          background: palette[pixel.color]
+                        }}
+                      />
+                    );
+                  })}
                 </div>
-                <div
-                  className="avatar-preview-head"
-                  style={{ background: previewAvatar.skin }}
-                />
-                <div
-                  className="avatar-preview-hair"
-                  style={{ background: previewAvatar.hair }}
-                />
               </div>
             </div>
             <div className="avatar-picker-group">

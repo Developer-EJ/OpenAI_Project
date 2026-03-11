@@ -1,18 +1,32 @@
 import { useEffect, useRef } from "react";
 import jungleLogoUrl from "../assets/jungle-logo.webp";
 import appleLogoUrl from "../assets/apple.png";
-import basketballPortalUrl from "../assets/portal-basketball.jpg";
-import cafeteriaPortalUrl from "../assets/portal-cafeteria.png";
-import classroomPortalUrl from "../assets/portal-classroom-book.png";
+import dotPortalUrl from "../assets/dot1.png";
+import computerPortalUrl from "../assets/com.jpg";
+import basketballDotUrl from "../assets/portal-basketball-dot.png";
+import cafeteriaDotUrl from "../assets/portal-cafeteria-dot.png";
+import cafeBurgerUrl from "../assets/cafe-burger.png";
+import cafeSushiUrl from "../assets/cafe-sushi.png";
 import { createRandomAvatar } from "../avatar";
 import { AREA_META, DEFAULT_AREA_ID, MAP } from "../constants";
 import { AREAS, getAreaById } from "../data/areas";
 
 let lobbyLogoImage = null;
 let appleLogoImage = null;
-const portalImages = {};
-const processedPortalImages = {};
+let dotPortalImage = null;
+let computerPortalImage = null;
+let basketballDotImage = null;
+let cafeteriaDotImage = null;
+let cafeBurgerImage = null;
+let cafeSushiImage = null;
 let processedAppleLogoImage = null;
+let processedComputerPortalImage = null;
+
+const DOT_PORTAL_FRAMES = {
+  door: { sx: 244, sy: 272, sw: 280, sh: 444 },
+  basketball: { sx: 655, sy: 305, sw: 272, sh: 272 },
+  cafeteria: { sx: 996, sy: 290, sw: 354, sh: 286 }
+};
 
 function getLobbyLogoImage() {
   if (typeof Image === "undefined") {
@@ -84,109 +98,178 @@ function getProcessedAppleLogoImage() {
   return canvas;
 }
 
-function getPortalImage(areaId) {
+function getDotPortalImage() {
   if (typeof Image === "undefined") {
     return null;
   }
 
-  if (!portalImages[areaId]) {
-    const image = new Image();
-    image.src =
-      areaId === "basketball"
-        ? basketballPortalUrl
-        : areaId === "cafeteria"
-          ? cafeteriaPortalUrl
-          : classroomPortalUrl;
-    portalImages[areaId] = image;
+  if (!dotPortalImage) {
+    dotPortalImage = new Image();
+    dotPortalImage.src = dotPortalUrl;
   }
 
-  return portalImages[areaId];
+  return dotPortalImage;
 }
 
-function getProcessedPortalImage(areaId) {
+function getComputerPortalImage() {
+  if (typeof Image === "undefined") {
+    return null;
+  }
+
+  if (!computerPortalImage) {
+    computerPortalImage = new Image();
+    computerPortalImage.src = computerPortalUrl;
+  }
+
+  return computerPortalImage;
+}
+
+function getBasketballDotImage() {
+  if (typeof Image === "undefined") {
+    return null;
+  }
+
+  if (!basketballDotImage) {
+    basketballDotImage = new Image();
+    basketballDotImage.src = basketballDotUrl;
+  }
+
+  return basketballDotImage;
+}
+
+function getCafeteriaDotImage() {
+  if (typeof Image === "undefined") {
+    return null;
+  }
+
+  if (!cafeteriaDotImage) {
+    cafeteriaDotImage = new Image();
+    cafeteriaDotImage.src = cafeteriaDotUrl;
+  }
+
+  return cafeteriaDotImage;
+}
+
+function getCafeBurgerImage() {
+  if (typeof Image === "undefined") {
+    return null;
+  }
+
+  if (!cafeBurgerImage) {
+    cafeBurgerImage = new Image();
+    cafeBurgerImage.src = cafeBurgerUrl;
+  }
+
+  return cafeBurgerImage;
+}
+
+function getCafeSushiImage() {
+  if (typeof Image === "undefined") {
+    return null;
+  }
+
+  if (!cafeSushiImage) {
+    cafeSushiImage = new Image();
+    cafeSushiImage.src = cafeSushiUrl;
+  }
+
+  return cafeSushiImage;
+}
+
+function drawPixelatedImage(ctx, image, dx, dy, dw, dh, sampleWidth = 64, sampleHeight = 64) {
+  if (typeof document === "undefined" || !image) {
+    return;
+  }
+
+  const pixelCanvas = document.createElement("canvas");
+  pixelCanvas.width = sampleWidth;
+  pixelCanvas.height = sampleHeight;
+  const pixelContext = pixelCanvas.getContext("2d");
+  pixelContext.imageSmoothingEnabled = false;
+  pixelContext.drawImage(image, 0, 0, sampleWidth, sampleHeight);
+
+  ctx.save();
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(pixelCanvas, dx, dy, dw, dh);
+  ctx.restore();
+}
+
+function getProcessedComputerPortalImage() {
   if (typeof document === "undefined") {
     return null;
   }
 
-  const sourceImage = getPortalImage(areaId);
+  const sourceImage = getComputerPortalImage();
   if (!sourceImage?.complete) {
     return null;
   }
 
-  const cacheKey = `${areaId}:${sourceImage.width}x${sourceImage.height}`;
-  if (processedPortalImages[cacheKey]) {
-    return processedPortalImages[cacheKey];
+  if (processedComputerPortalImage) {
+    return processedComputerPortalImage;
   }
 
+  const frame = {
+    sx: 188,
+    sy: 124,
+    sw: 620,
+    sh: 760
+  };
+
   const canvas = document.createElement("canvas");
-  canvas.width = sourceImage.width;
-  canvas.height = sourceImage.height;
+  canvas.width = frame.sw;
+  canvas.height = frame.sh;
   const context = canvas.getContext("2d");
-  context.drawImage(sourceImage, 0, 0);
+  context.drawImage(
+    sourceImage,
+    frame.sx,
+    frame.sy,
+    frame.sw,
+    frame.sh,
+    0,
+    0,
+    frame.sw,
+    frame.sh
+  );
 
   const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
   const { data } = imageData;
+  const bgRed = data[0];
+  const bgGreen = data[1];
+  const bgBlue = data[2];
 
   for (let index = 0; index < data.length; index += 4) {
     const red = data[index];
     const green = data[index + 1];
     const blue = data[index + 2];
     const alpha = data[index + 3];
-    const average = (red + green + blue) / 3;
-    const isNeutral =
-      Math.abs(red - green) < 18 &&
-      Math.abs(green - blue) < 18 &&
-      Math.abs(red - blue) < 18;
+    const closeToBackground =
+      Math.abs(red - bgRed) < 24 &&
+      Math.abs(green - bgGreen) < 24 &&
+      Math.abs(blue - bgBlue) < 24;
+    const watermarkLike = red > 220 && green > 220 && blue > 220;
 
-    if (alpha > 0 && isNeutral && average > 175) {
+    if (alpha > 0 && (closeToBackground || watermarkLike)) {
       data[index + 3] = 0;
     }
   }
 
   context.putImageData(imageData, 0, 0);
-  processedPortalImages[cacheKey] = canvas;
+  processedComputerPortalImage = canvas;
   return canvas;
-}
-
-function getPortalImageFrame(areaId, image) {
-  if (!image?.width || !image?.height) {
-    return { sx: 0, sy: 0, sw: 1, sh: 1 };
-  }
-
-  if (areaId === "basketball") {
-    return {
-      sx: image.width * 0.12,
-      sy: image.height * 0.06,
-      sw: image.width * 0.76,
-      sh: image.height * 0.72
-    };
-  }
-
-  return {
-    sx: 0,
-    sy: 0,
-    sw: image.width,
-    sh: image.height
-  };
-}
-
-function getPortalImageScale(areaId) {
-  if (areaId === "cafeteria") {
-    return 0.9;
-  }
-
-  return 1;
 }
 
 function drawStyledPortal(ctx, area, isActive) {
   const { x, y, radius } = area.portal;
   const accent = AREA_META[area.id]?.accent || "#8a8a8a";
-  const palette = getReturnDoorPalette(area.id);
-  const doorWidth = radius * 1.18;
-  const doorHeight = radius * 1.5;
+  const doorWidth = 76;
+  const doorHeight = 115;
+  const labelY = doorHeight / 2 + 29;
+  const iconCenterX = x < MAP.width / 2 ? 54 : -54;
+  const unit = 4;
 
   ctx.save();
   ctx.translate(x, y);
+  ctx.imageSmoothingEnabled = false;
 
   if (isActive) {
     ctx.fillStyle =
@@ -200,124 +283,53 @@ function drawStyledPortal(ctx, area, isActive) {
     ctx.fill();
   }
 
-  fillRounded(ctx, -doorWidth / 2, -doorHeight / 2, doorWidth, doorHeight, 20, palette.frame);
-  strokeRounded(
-    ctx,
-    -doorWidth / 2,
-    -doorHeight / 2,
-    doorWidth,
-    doorHeight,
-    20,
-    isActive ? accent : palette.frameStroke,
-    isActive ? 4 : 3
-  );
-  fillRounded(
-    ctx,
-    -doorWidth / 2 + 10,
-    -doorHeight / 2 + 12,
-    doorWidth - 20,
-    doorHeight - 24,
-    16,
-    palette.door
-  );
-  strokeRounded(
-    ctx,
-    -doorWidth / 2 + 10,
-    -doorHeight / 2 + 12,
-    doorWidth - 20,
-    doorHeight - 24,
-    16,
-    palette.doorStroke,
-    3
-  );
-
-  ctx.strokeStyle = palette.trim;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(0, -doorHeight / 2 + 18);
-  ctx.lineTo(0, doorHeight / 2 - 18);
-  ctx.stroke();
-
-  ctx.fillStyle = palette.knob;
-  ctx.beginPath();
-  ctx.arc(doorWidth / 2 - 26, 2, 5, 0, Math.PI * 2);
-  ctx.fill();
-
-  if (area.id === "basketball") {
-    ctx.fillStyle = "#dc7a3f";
-    ctx.beginPath();
-    ctx.arc(0, -6, radius * 0.28, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.strokeStyle = palette.detail;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(0, -6, radius * 0.28, Math.PI * 0.18, Math.PI * 1.82);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.28, -6);
-    ctx.lineTo(radius * 0.28, -6);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(0, -radius * 0.34);
-    ctx.lineTo(0, radius * 0.22);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.24, -radius * 0.18);
-    ctx.quadraticCurveTo(-radius * 0.06, -radius * 0.04, -radius * 0.04, radius * 0.2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(radius * 0.24, -radius * 0.18);
-    ctx.quadraticCurveTo(radius * 0.06, -radius * 0.04, radius * 0.04, radius * 0.2);
-    ctx.stroke();
-  } else if (area.id === "cafeteria") {
-    ctx.fillStyle = "#fbf7f1";
-    ctx.beginPath();
-    ctx.arc(0, -2, radius * 0.18, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.strokeStyle = palette.detail;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(0, -2, radius * 0.24, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.12, radius * 0.16);
-    ctx.lineTo(radius * 0.12, radius * 0.16);
-    ctx.stroke();
-
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.36, -radius * 0.22);
-    ctx.lineTo(-radius * 0.36, radius * 0.16);
-    ctx.stroke();
-    [-0.42, -0.36, -0.3].forEach((offset) => {
-      ctx.beginPath();
-      ctx.moveTo(radius * offset, -radius * 0.28);
-      ctx.lineTo(radius * offset, -radius * 0.12);
-      ctx.stroke();
-    });
-
-    ctx.beginPath();
-    ctx.moveTo(radius * 0.32, -radius * 0.28);
-    ctx.lineTo(radius * 0.26, radius * 0.12);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(radius * 0.26, radius * 0.12);
-    ctx.lineTo(radius * 0.32, radius * 0.2);
-    ctx.stroke();
-  } else {
-    fillRounded(ctx, -radius * 0.34, -radius * 0.18, radius * 0.68, radius * 0.36, 10, palette.detail);
-    fillRounded(ctx, -radius * 0.28, -radius * 0.12, radius * 0.56, radius * 0.24, 8, "#f9fbfc");
-    fillRounded(ctx, -radius * 0.44, radius * 0.18, radius * 0.88, radius * 0.08, 8, palette.detail);
-    ctx.fillStyle = palette.detail;
-    ctx.font = `${Math.round(radius * 0.24)}px monospace`;
-    ctx.textAlign = "center";
-    ctx.fillText(">_", 0, radius * 0.04);
+  fillPixelRect(ctx, -doorWidth / 2, -doorHeight / 2, doorWidth, doorHeight, "#1f2430");
+  fillPixelRect(ctx, -doorWidth / 2 + unit, -doorHeight / 2 + unit, doorWidth - unit * 2, doorHeight - unit * 2, "#7e4f2c");
+  fillPixelRect(ctx, -doorWidth / 2 + unit * 2, -doorHeight / 2 + unit * 2, doorWidth - unit * 4, doorHeight - unit * 4, "#9d6234");
+  fillPixelRect(ctx, -doorWidth / 2 + unit * 4, -doorHeight / 2 + unit * 4, doorWidth - unit * 8, doorHeight - unit * 8, "#7c451f");
+  fillPixelRect(ctx, -doorWidth / 2 + 12, -doorHeight / 2 + 12, 8, doorHeight - 24, "#b56d36");
+  fillPixelRect(ctx, -doorWidth / 2 + 28, -doorHeight / 2 + 20, 8, doorHeight - 40, "#b56d36");
+  fillPixelRect(ctx, doorWidth / 2 - 20, -4, 8, 8, "#ffd35a");
+  if (isActive) {
+    fillPixelRect(ctx, -doorWidth / 2 - 4, -doorHeight / 2 - 4, doorWidth + 8, 4, accent);
+    fillPixelRect(ctx, -doorWidth / 2 - 4, doorHeight / 2, doorWidth + 8, 4, accent);
+    fillPixelRect(ctx, -doorWidth / 2 - 4, -doorHeight / 2, 4, doorHeight, accent);
+    fillPixelRect(ctx, doorWidth / 2, -doorHeight / 2, 4, doorHeight, accent);
   }
 
-  ctx.fillStyle = palette.label;
-  ctx.font = "700 18px sans-serif";
+  if (area.id === "basketball") {
+    fillPixelRect(ctx, iconCenterX - 16, labelY - 20, 32, 32, "#e77a22");
+    fillPixelRect(ctx, iconCenterX - 12, labelY - 16, 24, 24, "#ff962f");
+    fillPixelRect(ctx, iconCenterX - 2, labelY - 20, 4, 32, "#1b2030");
+    fillPixelRect(ctx, iconCenterX - 16, labelY - 2, 32, 4, "#1b2030");
+    fillPixelRect(ctx, iconCenterX - 14, labelY - 14, 4, 8, "#1b2030");
+    fillPixelRect(ctx, iconCenterX + 10, labelY + 6, 4, 8, "#1b2030");
+  } else if (area.id === "cafeteria") {
+    fillPixelRect(ctx, iconCenterX - 16, labelY - 6, 32, 4, "#6f5238");
+    fillPixelRect(ctx, iconCenterX - 16, labelY + 4, 32, 4, "#6f5238");
+    fillPixelRect(ctx, iconCenterX - 10, labelY - 18, 20, 4, "#f2f0e8");
+    fillPixelRect(ctx, iconCenterX - 12, labelY - 14, 24, 8, "#f2f0e8");
+    fillPixelRect(ctx, iconCenterX - 10, labelY - 6, 20, 4, "#d7b084");
+    fillPixelRect(ctx, iconCenterX - 12, labelY - 2, 24, 8, "#b7895b");
+    fillPixelRect(ctx, iconCenterX - 8, labelY + 6, 16, 4, "#8e623d");
+    sprinklePixels(ctx, "#d9d6cf", [
+      [iconCenterX - 6, labelY - 20, 2],
+      [iconCenterX + 2, labelY - 16, 2],
+      [iconCenterX - 2, labelY - 12, 2]
+    ]);
+  } else {
+    fillPixelRect(ctx, iconCenterX - 18, labelY - 20, 36, 24, "#1f2430");
+    fillPixelRect(ctx, iconCenterX - 14, labelY - 16, 28, 16, "#dce7ea");
+    fillPixelRect(ctx, iconCenterX - 6, labelY + 4, 12, 4, "#1f2430");
+    fillPixelRect(ctx, iconCenterX - 18, labelY + 8, 36, 4, "#1f2430");
+    fillPixelRect(ctx, iconCenterX - 8, labelY - 10, 4, 4, "#1f2430");
+    fillPixelRect(ctx, iconCenterX + 0, labelY - 10, 8, 4, "#1f2430");
+  }
+
+  ctx.fillStyle = accent;
+  ctx.font = "800 22px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(AREA_META[area.id]?.label || area.id, 0, doorHeight / 2 + 26);
+  ctx.fillText(AREA_META[area.id]?.label || area.id, 0, labelY);
 
   ctx.restore();
 }
@@ -431,38 +443,22 @@ function getReturnDoorPalette(areaId) {
 }
 
 function drawReturnDoor(ctx, portal, areaId) {
-  const width = portal.radius * 1.1;
-  const height = portal.radius * 1.45;
+  const width = 76;
+  const height = 115;
   const palette = getReturnDoorPalette(areaId);
+  const unit = 4;
 
   ctx.save();
   ctx.translate(portal.x, portal.y);
+  ctx.imageSmoothingEnabled = false;
 
-  fillRounded(ctx, -width / 2, -height / 2, width, height, 18, palette.frame);
-  strokeRounded(ctx, -width / 2, -height / 2, width, height, 18, palette.frameStroke, 4);
-  fillRounded(ctx, -width / 2 + 10, -height / 2 + 12, width - 20, height - 24, 14, palette.door);
-  strokeRounded(
-    ctx,
-    -width / 2 + 10,
-    -height / 2 + 12,
-    width - 20,
-    height - 24,
-    14,
-    palette.doorStroke,
-    3
-  );
-
-  ctx.strokeStyle = palette.trim;
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(0, -height / 2 + 14);
-  ctx.lineTo(0, height / 2 - 14);
-  ctx.stroke();
-
-  ctx.fillStyle = palette.knob;
-  ctx.beginPath();
-  ctx.arc(width / 2 - 24, 2, 5, 0, Math.PI * 2);
-  ctx.fill();
+  fillPixelRect(ctx, -width / 2, -height / 2, width, height, "#1f2430");
+  fillPixelRect(ctx, -width / 2 + unit, -height / 2 + unit, width - unit * 2, height - unit * 2, palette.door);
+  fillPixelRect(ctx, -width / 2 + unit * 2, -height / 2 + unit * 2, width - unit * 4, height - unit * 4, palette.frameStroke);
+  fillPixelRect(ctx, -width / 2 + unit * 4, -height / 2 + unit * 4, width - unit * 8, height - unit * 8, palette.door);
+  fillPixelRect(ctx, -width / 2 + 12, -height / 2 + 12, 8, height - 24, palette.doorStroke);
+  fillPixelRect(ctx, -width / 2 + 28, -height / 2 + 20, 8, height - 40, palette.doorStroke);
+  fillPixelRect(ctx, width / 2 - 20, -4, 8, 8, palette.knob);
 
   ctx.fillStyle = palette.label;
   ctx.font = "700 16px sans-serif";
@@ -471,54 +467,113 @@ function drawReturnDoor(ctx, portal, areaId) {
   ctx.restore();
 }
 
+function fillPixelRect(ctx, x, y, width, height, color) {
+  ctx.fillStyle = color;
+  ctx.fillRect(x, y, width, height);
+}
+
+function sprinklePixels(ctx, color, points) {
+  ctx.fillStyle = color;
+  points.forEach(([x, y, size = 4]) => {
+    ctx.fillRect(x, y, size, size);
+  });
+}
+
+function drawPixelAvatarSprite(ctx, avatar, motion = {}) {
+  const unit = 4;
+  const offsetX = -18;
+  const offsetY = -44 + (motion.bodyOffsetY || 0);
+  const leftLegOffset = motion.leftLegOffset || 0;
+  const rightLegOffset = motion.rightLegOffset || 0;
+
+  const draw = (gx, gy, gw, gh, color) => {
+    fillPixelRect(ctx, offsetX + gx * unit, offsetY + gy * unit, gw * unit, gh * unit, color);
+  };
+
+  draw(2, 0, 5, 1, avatar.hair);
+  draw(1, 1, 7, 1, avatar.hair);
+  draw(1, 2, 1, 1, avatar.hair);
+  draw(7, 2, 1, 1, avatar.hair);
+
+  draw(2, 2, 5, 3, avatar.skin);
+  draw(1, 3, 1, 1, avatar.skin);
+  draw(7, 3, 1, 1, avatar.skin);
+  draw(3, 5, 3, 1, avatar.skin);
+
+  draw(3, 3, 1, 1, "#241711");
+  draw(5, 3, 1, 1, "#241711");
+
+  draw(2, 6, 5, 1, avatar.top);
+  draw(1, 7, 7, 2, avatar.top);
+  draw(2, 9, 5, 1, avatar.top);
+  draw(3, 7, 3, 1, avatar.accent);
+
+  draw(1, 9, 1, 2, avatar.skin);
+  draw(7, 9, 1, 2, avatar.skin);
+  fillPixelRect(ctx, offsetX + 2 * unit, offsetY + (10 + leftLegOffset) * unit, 2 * unit, 3 * unit, "#2b3430");
+  fillPixelRect(
+    ctx,
+    offsetX + 5 * unit,
+    offsetY + (10 + rightLegOffset) * unit,
+    2 * unit,
+    3 * unit,
+    "#2b3430"
+  );
+
+  fillPixelRect(ctx, offsetX + 1 * unit, offsetY + (13 + leftLegOffset) * unit, 2 * unit, 1 * unit, "#1c241f");
+  fillPixelRect(
+    ctx,
+    offsetX + 5 * unit,
+    offsetY + (13 + rightLegOffset) * unit,
+    2 * unit,
+    1 * unit,
+    "#1c241f"
+  );
+}
+
 function drawAvatar(ctx, player) {
   const { x, y } = player.position;
   const avatar = player.avatar || createRandomAvatar(0.42);
+  const stridePhase = (x + y) / 14;
+  const leftLegOffset = player.isMoving ? Math.round(Math.sin(stridePhase)) : 0;
+  const rightLegOffset = player.isMoving ? Math.round(Math.sin(stridePhase + Math.PI)) : 0;
+  const bodyOffsetY = player.isMoving ? Math.round(Math.cos(stridePhase * 2) * 0.5) : 0;
+  const avatarScale = 1.1;
 
   ctx.save();
   ctx.translate(x, y);
+  ctx.imageSmoothingEnabled = false;
 
   ctx.fillStyle = "rgba(18, 22, 21, 0.18)";
   ctx.beginPath();
-  ctx.ellipse(0, 30, 20, 9, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, 22, player.isMoving ? 20 : 22, 8, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  fillRounded(ctx, -16, -2, 32, 28, 10, avatar.top);
-  fillRounded(ctx, -7, 8, 14, 8, 4, avatar.accent);
-
-  ctx.fillStyle = avatar.skin;
-  ctx.beginPath();
-  ctx.arc(0, -16, 16, 0, Math.PI * 2);
-  ctx.fill();
-
-  ctx.fillStyle = avatar.hair;
-  ctx.beginPath();
-  ctx.arc(0, -21, 17, Math.PI, Math.PI * 2);
-  ctx.fill();
-  ctx.fillRect(-17, -21, 34, 8);
-
-  ctx.fillStyle = "#241711";
-  ctx.beginPath();
-  ctx.arc(-5, -17, 1.8, 0, Math.PI * 2);
-  ctx.arc(5, -17, 1.8, 0, Math.PI * 2);
-  ctx.fill();
+  ctx.save();
+  ctx.scale(avatarScale, avatarScale);
+  drawPixelAvatarSprite(ctx, avatar, {
+    bodyOffsetY,
+    leftLegOffset,
+    rightLegOffset
+  });
+  ctx.restore();
 
   ctx.fillStyle = "#14211b";
-  ctx.font = "600 14px sans-serif";
+  ctx.font = "700 15px sans-serif";
   ctx.textAlign = "center";
-  ctx.fillText(player.name, 0, -44);
+  ctx.fillText(player.name, 0, -58);
 
   ctx.fillStyle = "#f2f4ef";
   ctx.font = "12px sans-serif";
-  ctx.fillText(player.classroom, 0, -58);
+  ctx.fillText(player.classroom, 0, -74);
 
   if (player.lastMessage) {
-    const bubbleWidth = Math.min(180, Math.max(90, player.lastMessage.length * 9));
-    fillRounded(ctx, -bubbleWidth / 2, -102, bubbleWidth, 30, 12, "rgba(255, 255, 255, 0.94)");
-    strokeRounded(ctx, -bubbleWidth / 2, -102, bubbleWidth, 30, 12, "rgba(28, 42, 34, 0.15)");
+    const bubbleWidth = Math.min(196, Math.max(102, player.lastMessage.length * 9));
+    fillRounded(ctx, -bubbleWidth / 2, -114, bubbleWidth, 34, 12, "rgba(255, 255, 255, 0.94)");
+    strokeRounded(ctx, -bubbleWidth / 2, -114, bubbleWidth, 34, 12, "rgba(28, 42, 34, 0.15)");
     ctx.fillStyle = "#23352b";
     ctx.font = "12px sans-serif";
-    ctx.fillText(player.lastMessage.slice(0, 20), 0, -82);
+    ctx.fillText(player.lastMessage.slice(0, 20), 0, -92);
   }
 
   ctx.restore();
@@ -530,15 +585,83 @@ function drawPortal(ctx, area, isActive) {
 
 function drawLobbyScene(ctx, previewAreaId) {
   ctx.clearRect(0, 0, MAP.width, MAP.height);
-  ctx.fillStyle = "#d1d5d9";
+  ctx.imageSmoothingEnabled = false;
+  const tile = 16;
+  const border = 5 * tile;
+  const innerX = border;
+  const innerY = border;
+  const innerWidth = MAP.width - border * 2;
+  const innerHeight = MAP.height - border * 2;
+
+  ctx.fillStyle = "#515861";
   ctx.fillRect(0, 0, MAP.width, MAP.height);
+
+  for (let y = 0; y < MAP.height; y += tile) {
+    for (let x = 0; x < MAP.width; x += tile) {
+      const isBorder =
+        x < innerX || x >= innerX + innerWidth || y < innerY || y >= innerY + innerHeight;
+      if (isBorder) {
+        const wallTone = ((x / tile) + (y / tile)) % 2 === 0 ? "#6c737c" : "#5d646d";
+        fillPixelRect(ctx, x, y, tile, tile, wallTone);
+        fillPixelRect(ctx, x, y, tile, 2, "#8e97a1");
+        fillPixelRect(ctx, x, y + tile - 2, tile, 2, "#3f454d");
+      } else {
+        const floorTone = ((x / tile) + (y / tile)) % 2 === 0 ? "#cfd5da" : "#c3c9ce";
+        fillPixelRect(ctx, x, y, tile, tile, floorTone);
+        fillPixelRect(ctx, x, y, tile, 1, "#dde2e6");
+        fillPixelRect(ctx, x, y + tile - 1, tile, 1, "#aab1b7");
+      }
+    }
+  }
+
+  const drawPillar = (x, y) => {
+    fillPixelRect(ctx, x, y, tile * 2, tile * 2, "#8b949d");
+    fillPixelRect(ctx, x + 2, y + 2, tile * 2 - 4, tile * 2 - 4, "#b6bec6");
+    fillPixelRect(ctx, x + 5, y + 5, tile * 2 - 10, tile * 2 - 10, "#d8dde1");
+  };
+
+  [
+    [170, 140], [MAP.width - 202, 140],
+    [170, MAP.height - 172], [MAP.width - 202, MAP.height - 172]
+  ].forEach(([x, y]) => drawPillar(x, y));
+
+  const drawBench = (x, y, width) => {
+    fillPixelRect(ctx, x, y, width, 10, "#8e623d");
+    fillPixelRect(ctx, x, y + 10, width, 4, "#5a3b26");
+    fillPixelRect(ctx, x + 8, y + 14, 6, 14, "#4c3321");
+    fillPixelRect(ctx, x + width - 14, y + 14, 6, 14, "#4c3321");
+  };
+
+  drawBench(238, 144, 118);
+  drawBench(MAP.width - 356, 144, 118);
+  drawBench(238, MAP.height - 166, 118);
+  drawBench(MAP.width - 356, MAP.height - 166, 118);
+
+  const drawPlanter = (x, y) => {
+    fillPixelRect(ctx, x, y, 48, 20, "#7d5738");
+    fillPixelRect(ctx, x + 3, y + 3, 42, 14, "#5a3e2a");
+    fillPixelRect(ctx, x + 8, y - 8, 10, 10, "#58a14d");
+    fillPixelRect(ctx, x + 18, y - 14, 12, 12, "#6dc560");
+    fillPixelRect(ctx, x + 28, y - 8, 10, 10, "#58a14d");
+  };
+
+  [420, 542, 964, 1086].forEach((x) => drawPlanter(x, 162));
+  [420, 542, 964, 1086].forEach((x) => drawPlanter(x, MAP.height - 138));
+
+  sprinklePixels(ctx, "#eef2f5", [
+    [304, 240, 3], [544, 224, 3], [820, 208, 3], [1168, 240, 3],
+    [330, 704, 3], [612, 736, 3], [930, 716, 3], [1218, 700, 3]
+  ]);
+  sprinklePixels(ctx, "#aeb5bb", [
+    [286, 272, 3], [570, 264, 3], [852, 244, 3], [1148, 274, 3],
+    [350, 684, 3], [636, 710, 3], [952, 694, 3], [1230, 676, 3]
+  ]);
 
   const logo = getLobbyLogoImage();
   if (logo?.complete) {
     ctx.save();
-    ctx.globalAlpha = 0.82;
-    ctx.translate(MAP.width / 2, MAP.height / 2);
-    ctx.drawImage(logo, -399, -112.2, 798, 224.4);
+    ctx.globalAlpha = 0.92;
+    drawPixelatedImage(ctx, logo, MAP.width / 2 - 336, MAP.height / 2 - 92, 672, 184, 96, 28);
     ctx.restore();
   }
 
@@ -547,33 +670,83 @@ function drawLobbyScene(ctx, previewAreaId) {
 
 function drawAreaScene(ctx, areaId) {
   ctx.clearRect(0, 0, MAP.width, MAP.height);
+  ctx.imageSmoothingEnabled = false;
+  const tile = 16;
 
   if (areaId === "basketball") {
-    ctx.fillStyle = "#965c33";
-    ctx.fillRect(0, 0, MAP.width, MAP.height);
-    fillRounded(ctx, 84, 84, MAP.width - 168, MAP.height - 168, 42, "#bf7b45");
-    strokeRounded(ctx, 84, 84, MAP.width - 168, MAP.height - 168, 42, "#f6d4a9", 6);
-    ctx.strokeStyle = "#f6d4a9";
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(MAP.width / 2, 84);
-    ctx.lineTo(MAP.width / 2, MAP.height - 84);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.arc(MAP.width / 2, MAP.height / 2, 86, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.strokeRect(84, 290, 132, 380);
-    ctx.strokeRect(MAP.width - 216, 290, 132, 380);
-    drawBasketballHoop(ctx, 142, MAP.height / 2, 1);
-    drawBasketballHoop(ctx, MAP.width - 142, MAP.height / 2, -1);
+    for (let y = 0; y < MAP.height; y += tile) {
+      for (let x = 0; x < MAP.width; x += tile) {
+        const tone = ((x / tile) + (y / tile)) % 2 === 0 ? "#6f873d" : "#627936";
+        fillPixelRect(ctx, x, y, tile, tile, tone);
+      }
+    }
+
+    const courtX = 180;
+    const courtY = 104;
+    const courtWidth = MAP.width - 360;
+    const courtHeight = MAP.height - 208;
+
+    fillPixelRect(ctx, courtX - 16, courtY - 16, courtWidth + 32, courtHeight + 32, "#8a9a5b");
+    fillPixelRect(ctx, courtX, courtY, courtWidth, courtHeight, "#b5451f");
+
+    for (let y = courtY; y < courtY + courtHeight; y += tile) {
+      for (let x = courtX; x < courtX + courtWidth; x += tile) {
+        const tone = ((x / tile) + (y / tile)) % 2 === 0 ? "#bc4d24" : "#a83f1b";
+        fillPixelRect(ctx, x, y, tile, tile, tone);
+      }
+    }
+
+    fillPixelRect(ctx, courtX, courtY, courtWidth, 6, "#e7d8c8");
+    fillPixelRect(ctx, courtX, courtY + courtHeight - 6, courtWidth, 6, "#e7d8c8");
+    fillPixelRect(ctx, courtX, courtY, 6, courtHeight, "#e7d8c8");
+    fillPixelRect(ctx, courtX + courtWidth - 6, courtY, 6, courtHeight, "#e7d8c8");
+    fillPixelRect(ctx, MAP.width / 2 - 3, courtY, 6, courtHeight, "#e7d8c8");
+
+    fillPixelRect(ctx, courtX + 92, MAP.height / 2 - 3, 120, 6, "#e7d8c8");
+    fillPixelRect(ctx, courtX + courtWidth - 212, MAP.height / 2 - 3, 120, 6, "#e7d8c8");
+    fillPixelRect(ctx, MAP.width / 2 - 40, MAP.height / 2 - 40, 80, 80, "#bc4d24");
+    fillPixelRect(ctx, MAP.width / 2 - 3, MAP.height / 2 - 40, 6, 80, "#e7d8c8");
+    fillPixelRect(ctx, MAP.width / 2 - 40, MAP.height / 2 - 3, 80, 6, "#e7d8c8");
+
+    fillPixelRect(ctx, courtX + 80, MAP.height / 2 - 112, 92, 224, "#bf5b34");
+    fillPixelRect(ctx, courtX + courtWidth - 172, MAP.height / 2 - 112, 92, 224, "#bf5b34");
+    fillPixelRect(ctx, courtX + 80, MAP.height / 2 - 112, 6, 224, "#e7d8c8");
+    fillPixelRect(ctx, courtX + 80, MAP.height / 2 - 112, 92, 6, "#e7d8c8");
+    fillPixelRect(ctx, courtX + 80, MAP.height / 2 + 106, 92, 6, "#e7d8c8");
+    fillPixelRect(ctx, courtX + courtWidth - 86, MAP.height / 2 - 112, 6, 224, "#e7d8c8");
+    fillPixelRect(ctx, courtX + courtWidth - 172, MAP.height / 2 - 112, 92, 6, "#e7d8c8");
+    fillPixelRect(ctx, courtX + courtWidth - 172, MAP.height / 2 + 106, 92, 6, "#e7d8c8");
+
+    for (let x = courtX + 24; x < courtX + courtWidth; x += 64) {
+      fillPixelRect(ctx, x, courtY - 22, 4, 18, "#2e321f");
+      fillPixelRect(ctx, x + 20, courtY - 22, 4, 18, "#2e321f");
+      fillPixelRect(ctx, x, courtY + courtHeight + 4, 4, 18, "#2e321f");
+      fillPixelRect(ctx, x + 20, courtY + courtHeight + 4, 4, 18, "#2e321f");
+    }
+
+    sprinklePixels(ctx, "#7d963f", [
+      [74, 132, 4], [126, 208, 4], [84, 760, 4], [1460, 190, 4], [1502, 280, 4],
+      [1454, 744, 4], [260, 74, 4], [1228, 74, 4]
+    ]);
+    sprinklePixels(ctx, "#d36a39", [
+      [264, 180, 4], [416, 212, 4], [1184, 226, 4], [352, 680, 4], [1068, 710, 4]
+    ]);
   } else if (areaId === "cafeteria") {
-    ctx.fillStyle = "#c7b7a6";
-    ctx.fillRect(0, 0, MAP.width, MAP.height);
-    fillRounded(ctx, 84, 84, MAP.width - 168, MAP.height - 168, 42, "#f4eadf");
-    fillRounded(ctx, 126, 122, 360, 108, 24, "#eadfce");
-    fillRounded(ctx, 1018, 124, 254, 112, 26, "#9a7256");
-    fillRounded(ctx, 1298, 124, 178, 650, 28, "#ece5dc");
-    fillRounded(ctx, 1316, 154, 142, 590, 24, "#d9ebe5");
+    for (let y = 0; y < MAP.height; y += tile) {
+      for (let x = 0; x < MAP.width; x += tile) {
+        const tone = ((x / tile) + (y / tile)) % 2 === 0 ? "#efe2d3" : "#e4d4c3";
+        fillPixelRect(ctx, x, y, tile, tile, tone);
+      }
+    }
+    fillPixelRect(ctx, 96, 96, MAP.width - 192, 16, "#d3c3b2");
+    fillPixelRect(ctx, 96, MAP.height - 112, MAP.width - 192, 16, "#c0b09f");
+    fillPixelRect(ctx, 96, 96, 16, MAP.height - 192, "#d8c8b8");
+    fillPixelRect(ctx, MAP.width - 112, 96, 16, MAP.height - 192, "#c2b3a3");
+    fillPixelRect(ctx, 1280, 112, 192, 672, "#e5dfd5");
+    fillPixelRect(ctx, 1296, 128, 160, 624, "#cfe6df");
+    fillPixelRect(ctx, 112, 120, 384, 96, "#dfd0bf");
+    fillPixelRect(ctx, 1008, 120, 272, 112, "#866047");
+    fillPixelRect(ctx, 1040, 152, 208, 24, "#d1b08a");
     [
       [308, 368],
       [566, 368],
@@ -582,41 +755,96 @@ function drawAreaScene(ctx, areaId) {
       [726, 604],
       [984, 604]
     ].forEach(([x, y], index) => {
-      fillRounded(ctx, x, y, 144, 88, 24, index % 2 === 0 ? "#b58767" : "#a77757");
-      fillRounded(ctx, x + 12, y + 12, 120, 26, 13, "#f6efe7");
-      fillRounded(ctx, x + 18, y + 48, 30, 22, 10, "#dac9b9");
-      fillRounded(ctx, x + 96, y + 48, 30, 22, 10, "#dac9b9");
+      fillPixelRect(ctx, x, y, 144, 88, index % 2 === 0 ? "#8e623d" : "#7c5332");
+      fillPixelRect(ctx, x, y, 144, 6, "#d6b089");
+      fillPixelRect(ctx, x, y + 82, 144, 6, "#5e3e26");
+      fillPixelRect(ctx, x + 14, y + 18, 24, 52, "#70513b");
+      fillPixelRect(ctx, x + 106, y + 18, 24, 52, "#70513b");
+      fillPixelRect(ctx, x + 44, y + 20, 56, 36, "#f0eadc");
+      fillPixelRect(ctx, x + 52, y + 58, 12, 18, "#b7a08a");
+      fillPixelRect(ctx, x + 80, y + 58, 12, 18, "#b7a08a");
+
+      const foodIcon = index % 2 === 0 ? getCafeBurgerImage() : getCafeSushiImage();
+      if (foodIcon?.complete) {
+        drawPixelatedImage(ctx, foodIcon, x + 54, y + 24, 34, 34, 12, 12);
+      }
     });
-    fillRounded(ctx, 1046, 154, 198, 44, 18, "#7d5a43");
-    fillRounded(ctx, 1080, 210, 134, 26, 13, "#d8b58c");
+    for (let x = 140; x < 1200; x += 96) {
+      fillPixelRect(ctx, x, 250, 12, 12, "#d9cab9");
+      fillPixelRect(ctx, x + 26, 250, 12, 12, "#d9cab9");
+      fillPixelRect(ctx, x + 52, 250, 12, 12, "#d9cab9");
+    }
+    sprinklePixels(ctx, "#d7cabd", [
+      [174, 250], [294, 284], [420, 246], [1192, 262], [1080, 728],
+      [906, 824], [300, 786], [566, 828]
+    ]);
+    sprinklePixels(ctx, "#bca28f", [
+      [250, 342], [610, 332], [892, 350], [536, 572], [794, 584], [1024, 576]
+    ]);
+    const burger = getCafeBurgerImage();
+    const sushi = getCafeSushiImage();
+    if (burger?.complete) {
+      drawPixelatedImage(ctx, burger, 176, 148, 42, 42, 14, 14);
+      drawPixelatedImage(ctx, burger, 252, 148, 42, 42, 14, 14);
+    }
+    if (sushi?.complete) {
+      drawPixelatedImage(ctx, sushi, 1088, 146, 40, 40, 14, 14);
+      drawPixelatedImage(ctx, sushi, 1138, 146, 40, 40, 14, 14);
+    }
   } else {
-    ctx.fillStyle = "#d4d0cb";
-    ctx.fillRect(0, 0, MAP.width, MAP.height);
-    fillRounded(ctx, 84, 84, MAP.width - 168, MAP.height - 168, 42, "#f7f6f3");
-    fillRounded(ctx, 1228, 112, 214, 704, 28, "#e6eef0");
-    fillRounded(ctx, 1246, 132, 178, 664, 20, "#d9eef5");
-    fillRounded(ctx, 136, 142, 302, 92, 18, "#eef0f1");
-    fillRounded(ctx, 516, 142, 268, 92, 18, "#eef0f1");
-    fillRounded(ctx, 864, 142, 250, 92, 18, "#eef0f1");
-    fillRounded(ctx, 236, 176, 150, 8, 4, "#bcc7cf");
-    fillRounded(ctx, 610, 176, 84, 44, 10, "#1f2a33");
+    for (let y = 0; y < MAP.height; y += tile) {
+      for (let x = 0; x < MAP.width; x += tile) {
+        const tone = ((x / tile) + (y / tile)) % 2 === 0 ? "#efede8" : "#e4e0d9";
+        fillPixelRect(ctx, x, y, tile, tile, tone);
+      }
+    }
+    fillPixelRect(ctx, 80, 80, MAP.width - 160, 12, "#bfc8cd");
+    fillPixelRect(ctx, 80, MAP.height - 92, MAP.width - 160, 12, "#9ea8ae");
+    fillPixelRect(ctx, 80, 80, 12, MAP.height - 160, "#bfc8cd");
+    fillPixelRect(ctx, MAP.width - 92, 80, 12, MAP.height - 160, "#9ea8ae");
+    fillPixelRect(ctx, 1216, 96, 224, 720, "#d8e1e5");
+    fillPixelRect(ctx, 1232, 112, 192, 688, "#c9e0e8");
+    fillPixelRect(ctx, 128, 128, 320, 96, "#d8dddf");
+    fillPixelRect(ctx, 496, 128, 304, 96, "#d8dddf");
+    fillPixelRect(ctx, 848, 128, 288, 96, "#d8dddf");
+    fillPixelRect(ctx, 224, 168, 160, 8, "#aeb8be");
+    fillPixelRect(ctx, 602, 166, 100, 58, "#1f2a33");
+    fillPixelRect(ctx, 610, 174, 84, 42, "#2d3945");
     const appleLogo = getProcessedAppleLogoImage() || getAppleLogoImage();
     if (appleLogo) {
       ctx.drawImage(appleLogo, 636, 182, 32, 32);
     }
-    fillRounded(ctx, 950, 170, 78, 36, 8, "#ffffff");
+    fillPixelRect(ctx, 944, 164, 90, 48, "#f8f8f6");
+    fillPixelRect(ctx, 952, 172, 74, 32, "#ffffff");
+    fillPixelRect(ctx, 968, 180, 8, 8, "#1f2a33");
+    fillPixelRect(ctx, 986, 180, 26, 4, "#1f2a33");
+    fillPixelRect(ctx, 986, 190, 18, 4, "#1f2a33");
     for (let row = 0; row < 3; row += 1) {
       for (let column = 0; column < 4; column += 1) {
         const x = 214 + column * 226;
         const y = 312 + row * 146;
-        fillRounded(ctx, x, y, 152, 72, 18, "#e5e1db");
-        strokeRounded(ctx, x, y, 152, 72, 18, "#c2bcb4", 2);
-        fillRounded(ctx, x - 18, y + 18, 28, 28, 12, "#b9c1c6");
-        fillRounded(ctx, x + 142, y + 18, 28, 28, 12, "#b9c1c6");
-        fillRounded(ctx, x + 26, y + 16, 100, 18, 9, "#ffffff");
+        fillPixelRect(ctx, x, y, 152, 20, "#d0ccc4");
+        fillPixelRect(ctx, x, y + 20, 152, 40, "#ece8e1");
+        fillPixelRect(ctx, x, y + 60, 152, 12, "#c2bcb4");
+        fillPixelRect(ctx, x + 24, y + 16, 104, 12, "#ffffff");
+        fillPixelRect(ctx, x + 16, y + 34, 120, 12, "#dbe4e8");
+        fillPixelRect(ctx, x + 48, y + 72, 8, 18, "#9ea8ae");
+        fillPixelRect(ctx, x + 96, y + 72, 8, 18, "#9ea8ae");
+        fillPixelRect(ctx, x - 20, y + 22, 24, 24, "#a7b0b6");
+        fillPixelRect(ctx, x + 148, y + 22, 24, 24, "#a7b0b6");
       }
     }
-    fillRounded(ctx, 120, 250, 44, 466, 18, "#f1f1f1");
+    fillPixelRect(ctx, 112, 240, 48, 480, "#f1f1f1");
+    for (let y = 260; y < 700; y += 54) {
+      fillPixelRect(ctx, 116, y, 40, 6, "#d7d7d7");
+    }
+    sprinklePixels(ctx, "#d0d7db", [
+      [232, 260], [402, 222], [588, 246], [980, 260], [1168, 216],
+      [286, 700], [714, 688], [1116, 674]
+    ]);
+    sprinklePixels(ctx, "#b9c1c6", [
+      [256, 362], [482, 356], [940, 364], [1188, 354], [510, 510], [952, 644]
+    ]);
   }
 
   const area = getAreaById(areaId);
@@ -642,6 +870,7 @@ export default function HallCanvas({
   onPortalSelect
 }) {
   const canvasRef = useRef(null);
+  const previousPositionsRef = useRef(new Map());
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -659,11 +888,25 @@ export default function HallCanvas({
       drawAreaScene(ctx, resolvedAreaId);
     }
 
+    const nextPositions = new Map();
+
     players.forEach((player) => {
       if (player?.position && player?.name) {
-        drawAvatar(ctx, player);
+        const previousPosition = previousPositionsRef.current.get(player.id);
+        const deltaX = previousPosition ? player.position.x - previousPosition.x : 0;
+        const deltaY = previousPosition ? player.position.y - previousPosition.y : 0;
+        drawAvatar(ctx, {
+          ...player,
+          isMoving: Math.abs(deltaX) > 0.5 || Math.abs(deltaY) > 0.5
+        });
+        nextPositions.set(player.id, {
+          x: player.position.x,
+          y: player.position.y
+        });
       }
     });
+
+    previousPositionsRef.current = nextPositions;
   }, [currentArea, players, previewAreaId]);
 
   function handleCanvasClick(event) {
