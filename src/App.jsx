@@ -306,7 +306,7 @@ export default function App() {
     const nextSession = {
       ...form,
       currentArea: DEFAULT_AREA_ID,
-      avatar: createRandomAvatar(),
+      avatar: form.avatar || createRandomAvatar(),
       position: getSpawnForArea(DEFAULT_AREA_ID)
     };
     setSession(nextSession);
