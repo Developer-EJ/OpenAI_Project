@@ -26,6 +26,22 @@ function createSpawn() {
   };
 }
 
+function getSpawnForArea(areaId) {
+  if (areaId === DEFAULT_AREA_ID) {
+    return {
+      x: Math.round(MAP.width / 2),
+      y: Math.round(MAP.height / 2)
+    };
+  }
+
+  const area = getAreaById(areaId);
+  if (area?.preview?.spawn) {
+    return area.preview.spawn;
+  }
+
+  return createSpawn();
+}
+
 export default function App() {
   const [session, setSession] = useState(() => loadSession());
   const [players, setPlayers] = useState([]);
@@ -37,7 +53,7 @@ export default function App() {
   const [chatScope, setChatScope] = useState("global");
   const [status, setStatus] = useState("로그인 후 입장하세요.");
   const [previewAreaId, setPreviewAreaId] = useState(null);
-  const [partyPanelCollapsed, setPartyPanelCollapsed] = useState(false);
+  const [partyPanelCollapsed, setPartyPanelCollapsed] = useState(true);
   const [mobilePanel, setMobilePanel] = useState("party");
   const movementRef = useRef({});
   const joinedRef = useRef(false);
@@ -121,7 +137,7 @@ export default function App() {
       ...session,
       currentArea: session.currentArea || DEFAULT_AREA_ID,
       avatar: session.avatar || createRandomAvatar(),
-      position: session.position || createSpawn()
+      position: session.position || getSpawnForArea(session.currentArea || DEFAULT_AREA_ID)
     };
 
     socket.emit("player:join", payload, (response) => {
@@ -185,7 +201,7 @@ export default function App() {
           ? {
               ...current,
               currentArea: response.areaId,
-              position: response.position || createSpawn()
+              position: response.position || getSpawnForArea(response.areaId)
             }
           : current
       );
@@ -283,7 +299,7 @@ export default function App() {
       ...form,
       currentArea: DEFAULT_AREA_ID,
       avatar: createRandomAvatar(),
-      position: createSpawn()
+      position: getSpawnForArea(DEFAULT_AREA_ID)
     };
     setSession(nextSession);
     saveSession(nextSession);
@@ -307,7 +323,7 @@ export default function App() {
       "area:change",
       {
         areaId,
-        position: createSpawn()
+        position: getSpawnForArea(areaId)
       },
       (response) => {
         if (!response?.ok) {
@@ -318,7 +334,7 @@ export default function App() {
         const nextSession = {
           ...session,
           currentArea: response.areaId,
-          position: response.position || createSpawn()
+          position: response.position || getSpawnForArea(response.areaId)
         };
         setSession(nextSession);
         saveSession(nextSession);
