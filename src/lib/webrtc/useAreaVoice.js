@@ -36,6 +36,11 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
   const connectionsRef = useRef(new Map());
   const localStreamRef = useRef(null);
   const pendingIceRef = useRef(new Map());
+  const lastSyncSignatureRef = useRef("");
+
+  function getPeerSetSignature(peerIds) {
+    return Array.from(new Set((peerIds || []).filter(Boolean))).sort().join("|");
+  }
 
   function clearRemoteStream(peerId) {
     setRemoteStreams((current) => current.filter((item) => item.peerId !== peerId));
@@ -70,6 +75,7 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
     entry.pc.close();
     connectionsRef.current.delete(peerId);
     pendingIceRef.current.delete(peerId);
+    lastSyncSignatureRef.current = "";
     clearRemoteStream(peerId);
   }
 
@@ -208,28 +214,50 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
       });
     };
 
-    const next = { pc, remoteStream, audioTransceiver };
+    const next = {
+      pc,
+      remoteStream,
+      audioTransceiver,
+      makingOffer: false,
+      awaitingAnswer: false
+    };
     connectionsRef.current.set(peerId, next);
     return next;
   }
 
   async function createOffer(peerId) {
-    logVoice("create-offer-start", { peerId });
     const entry = ensurePeerConnection(peerId);
-    await syncLocalTrack(entry);
-    const offer = await entry.pc.createOffer();
-    await entry.pc.setLocalDescription(offer);
-    logVoice("set-local-description", {
-      peerId,
-      type: entry.pc.localDescription?.type
-    });
-    socket.emit("voice:signal", {
-      targetId: peerId,
-      signal: {
-        type: "description",
-        description: entry.pc.localDescription
-      }
-    });
+    if (entry.makingOffer || entry.awaitingAnswer || entry.pc.signalingState !== "stable") {
+      logVoice("create-offer-skip", {
+        peerId,
+        makingOffer: entry.makingOffer,
+        awaitingAnswer: entry.awaitingAnswer,
+        signalingState: entry.pc.signalingState
+      });
+      return;
+    }
+
+    entry.makingOffer = true;
+    logVoice("create-offer-start", { peerId });
+    try {
+      await syncLocalTrack(entry);
+      const offer = await entry.pc.createOffer();
+      await entry.pc.setLocalDescription(offer);
+      entry.awaitingAnswer = true;
+      logVoice("set-local-description", {
+        peerId,
+        type: entry.pc.localDescription?.type
+      });
+      socket.emit("voice:signal", {
+        targetId: peerId,
+        signal: {
+          type: "description",
+          description: entry.pc.localDescription
+        }
+      });
+    } finally {
+      entry.makingOffer = false;
+    }
   }
 
   async function requestNegotiation(peerId) {
@@ -283,6 +311,19 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
 
   async function syncDesiredPeers(peerIds) {
     const nextPeerIds = new Set((peerIds || []).filter((peerId) => peerId && peerId !== selfId));
+    const signature = getPeerSetSignature(Array.from(nextPeerIds));
+    const hasAllConnections = Array.from(nextPeerIds).every((peerId) =>
+      connectionsRef.current.has(peerId)
+    );
+    if (signature === lastSyncSignatureRef.current && hasAllConnections) {
+      logVoice("sync-desired-peers-skip", {
+        selfId,
+        peerIds: Array.from(nextPeerIds)
+      });
+      return;
+    }
+
+    lastSyncSignatureRef.current = signature;
     logVoice("sync-desired-peers", {
       selfId,
       peerIds: Array.from(nextPeerIds)
@@ -398,6 +439,7 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
 
       await syncLocalTrack(entry);
       await entry.pc.setRemoteDescription(signal.description);
+      entry.awaitingAnswer = false;
       logVoice("set-remote-description", {
         fromId,
         type: signal.description.type
