@@ -12,7 +12,7 @@ export const AREA_META = {
   basketball: {
     id: "basketball",
     label: "농구장",
-    description: "농구 파티를 만들고 슛 챌린지까지 즐길 수 있는 액티브 공간입니다.",
+    description: "농구 파티를 만들고 사람들을 빠르게 모을 수 있는 액티브 공간입니다.",
     accent: "#ce7f37"
   },
   classroom: {

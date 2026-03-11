@@ -6,7 +6,7 @@ import cafeteriaPortalUrl from "../assets/portal-cafeteria.png";
 import classroomPortalUrl from "../assets/portal-classroom-book.png";
 import { createRandomAvatar } from "../avatar";
 import { AREA_META, DEFAULT_AREA_ID, MAP } from "../constants";
-import { AREAS, BASKETBALL_SHOT_ZONES, getAreaById } from "../data/areas";
+import { AREAS, getAreaById } from "../data/areas";
 
 let lobbyLogoImage = null;
 let appleLogoImage = null;
@@ -598,7 +598,7 @@ function drawBasketballZones(ctx, currentShotZoneId, basketballGameActive) {
   ctx.restore();
 }
 
-function drawAreaScene(ctx, areaId, currentShotZoneId, basketballGameActive) {
+function drawAreaScene(ctx, areaId) {
   ctx.clearRect(0, 0, MAP.width, MAP.height);
 
   if (areaId === "basketball") {
@@ -617,10 +617,8 @@ function drawAreaScene(ctx, areaId, currentShotZoneId, basketballGameActive) {
     ctx.stroke();
     ctx.strokeRect(84, 290, 132, 380);
     ctx.strokeRect(MAP.width - 216, 290, 132, 380);
-    drawBasketballZones(ctx, currentShotZoneId, basketballGameActive);
     drawBasketballHoop(ctx, 142, MAP.height / 2, 1);
     drawBasketballHoop(ctx, MAP.width - 142, MAP.height / 2, -1);
-    drawBasketballZones(ctx, currentShotZoneId, basketballGameActive);
   } else if (areaId === "cafeteria") {
     ctx.fillStyle = "#c7b7a6";
     ctx.fillRect(0, 0, MAP.width, MAP.height);
@@ -694,9 +692,7 @@ export default function HallCanvas({
   currentArea,
   players,
   previewAreaId,
-  onPortalSelect,
-  currentShotZoneId,
-  basketballGameActive
+  onPortalSelect
 }) {
   const canvasRef = useRef(null);
 
@@ -713,7 +709,7 @@ export default function HallCanvas({
     if (resolvedAreaId === DEFAULT_AREA_ID) {
       drawLobbyScene(ctx, previewAreaId);
     } else {
-      drawAreaScene(ctx, resolvedAreaId, currentShotZoneId, basketballGameActive);
+      drawAreaScene(ctx, resolvedAreaId);
     }
 
     players.forEach((player) => {
@@ -721,7 +717,7 @@ export default function HallCanvas({
         drawAvatar(ctx, player);
       }
     });
-  }, [currentArea, players, previewAreaId, currentShotZoneId, basketballGameActive]);
+  }, [currentArea, players, previewAreaId]);
 
   function handleCanvasClick(event) {
     if (currentArea !== DEFAULT_AREA_ID) {
