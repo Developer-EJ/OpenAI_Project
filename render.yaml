@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: jungle-campus-socket
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/index.js
+    envVars:
+      - key: CORS_ORIGIN
+        sync: false
