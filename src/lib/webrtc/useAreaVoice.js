@@ -390,13 +390,8 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
         micPeers: nextPeers.filter((peer) => peer.micEnabled).map((peer) => peer.id)
       });
       setPeerSummaries(nextPeers);
-      const desiredPeerIds = Array.from(
-        new Set([
-          ...nextPeers.map((peer) => peer.id),
-          ...candidatePeers.map((peer) => peer.id)
-        ])
-      );
-      await syncDesiredPeers(desiredPeerIds);
+      // Use the server-authoritative voice peer list for negotiation targets.
+      await syncDesiredPeers(nextPeers.map((peer) => peer.id));
     }
 
     async function handleVoiceSignal({ fromId, signal }) {
@@ -494,14 +489,6 @@ export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
       stopLocalStream();
     };
   }, [enabled, selfId, socket]);
-
-  useEffect(() => {
-    if (!enabled || !selfId) {
-      return;
-    }
-
-    void syncDesiredPeers(candidatePeers.map((peer) => peer.id));
-  }, [enabled, selfId, candidatePeers]);
 
   const connectionTargetCount = Math.max(peerSummaries.length, candidatePeers.length);
   const activeMicPeerCount =
