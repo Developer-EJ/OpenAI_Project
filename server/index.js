@@ -45,22 +45,20 @@ function sanitizeProfile(payload = {}) {
   return { name, classroom, hall, avatar, currentArea };
 }
 
-function getAreaRoomKey(hall, currentArea) {
-  return `${hall}:${currentArea}`;
+function getAreaRoomKey(currentArea) {
+  return currentArea;
 }
 
-function roomUsers(hall, currentArea) {
-  return Array.from(users.values()).filter(
-    (user) => user.hall === hall && user.currentArea === currentArea
-  );
+function roomUsers(currentArea) {
+  return Array.from(users.values()).filter((user) => user.currentArea === currentArea);
 }
 
-function getPartyKey(hall, areaId) {
-  return `${hall}:${areaId}`;
+function getPartyKey(areaId) {
+  return areaId;
 }
 
-function getAreaParties(hall, areaId) {
-  const key = getPartyKey(hall, areaId);
+function getAreaParties(areaId) {
+  const key = getPartyKey(areaId);
   if (!partiesByArea.has(key)) {
     partiesByArea.set(key, []);
   }
@@ -84,17 +82,17 @@ function serializeParty(party) {
   };
 }
 
-function broadcastAreaState(hall, areaId) {
-  io.to(getAreaRoomKey(hall, areaId)).emit("area:state", {
+function broadcastAreaState(areaId) {
+  io.to(getAreaRoomKey(areaId)).emit("area:state", {
     areaId,
-    users: roomUsers(hall, areaId)
+    users: roomUsers(areaId)
   });
 }
 
-function broadcastPartyList(hall, areaId) {
-  io.to(getAreaRoomKey(hall, areaId)).emit(
+function broadcastPartyList(areaId) {
+  io.to(getAreaRoomKey(areaId)).emit(
     "party:list",
-    getAreaParties(hall, areaId).map(serializeParty)
+    getAreaParties(areaId).map(serializeParty)
   );
 }
 
@@ -103,7 +101,7 @@ function removeUserFromPartiesForArea(user, areaId) {
     return;
   }
 
-  const nextParties = getAreaParties(user.hall, areaId)
+  const nextParties = getAreaParties(areaId)
     .map((party) => ({
       ...party,
       members: party.members.filter((member) => member.id !== user.id)
@@ -121,8 +119,8 @@ function removeUserFromPartiesForArea(user, areaId) {
       return party;
     });
 
-  partiesByArea.set(getPartyKey(user.hall, areaId), nextParties);
-  broadcastPartyList(user.hall, areaId);
+  partiesByArea.set(getPartyKey(areaId), nextParties);
+  broadcastPartyList(areaId);
 }
 
 function removeUserFromParties(user) {
@@ -151,23 +149,23 @@ io.on("connection", (socket) => {
       micEnabled: false
     };
 
-    const areaRoomKey = getAreaRoomKey(profile.hall, profile.currentArea);
+    const areaRoomKey = getAreaRoomKey(profile.currentArea);
     users.set(socket.id, player);
     socket.join(areaRoomKey);
 
     socket.to(areaRoomKey).emit("player:joined", player);
-    broadcastAreaState(profile.hall, profile.currentArea);
+    broadcastAreaState(profile.currentArea);
     voiceServer.handleUserJoined(player);
     if (PARTY_ENABLED_AREAS.includes(profile.currentArea)) {
-      broadcastPartyList(profile.hall, profile.currentArea);
+      broadcastPartyList(profile.currentArea);
     }
 
     ack?.({
       ok: true,
       message: `${profile.name}님, 캠퍼스에 입장했습니다.`,
       player,
-      users: roomUsers(profile.hall, profile.currentArea),
-      parties: getAreaParties(profile.hall, profile.currentArea).map(serializeParty)
+      users: roomUsers(profile.currentArea),
+      parties: getAreaParties(profile.currentArea).map(serializeParty)
     });
   });
 
@@ -184,21 +182,21 @@ io.on("connection", (socket) => {
         ok: true,
         areaId: user.currentArea,
         position: user.position,
-        users: roomUsers(user.hall, user.currentArea),
-        parties: getAreaParties(user.hall, user.currentArea).map(serializeParty)
+        users: roomUsers(user.currentArea),
+        parties: getAreaParties(user.currentArea).map(serializeParty)
       });
       return;
     }
 
     const previousArea = user.currentArea;
-    const previousRoomKey = getAreaRoomKey(user.hall, previousArea);
+    const previousRoomKey = getAreaRoomKey(previousArea);
     socket.leave(previousRoomKey);
     removeUserFromPartiesForArea(user, previousArea);
 
     user.currentArea = nextArea;
     user.position = clampPosition(payload?.position);
     user.lastMessage = "";
-    const nextRoomKey = getAreaRoomKey(user.hall, nextArea);
+    const nextRoomKey = getAreaRoomKey(nextArea);
     socket.join(nextRoomKey);
 
     socket.to(previousRoomKey).emit("player:left", { id: user.id });
@@ -207,23 +205,23 @@ io.on("connection", (socket) => {
       playerId: user.id,
       areaId: nextArea,
       position: user.position,
-      users: roomUsers(user.hall, nextArea),
-      parties: getAreaParties(user.hall, nextArea).map(serializeParty)
+      users: roomUsers(nextArea),
+      parties: getAreaParties(nextArea).map(serializeParty)
     });
 
-    broadcastAreaState(user.hall, previousArea);
-    broadcastAreaState(user.hall, nextArea);
-    voiceServer.handleAreaChanged(user.hall, previousArea, nextArea);
+    broadcastAreaState(previousArea);
+    broadcastAreaState(nextArea);
+    voiceServer.handleAreaChanged(previousArea, nextArea);
     if (PARTY_ENABLED_AREAS.includes(nextArea)) {
-      broadcastPartyList(user.hall, nextArea);
+      broadcastPartyList(nextArea);
     }
 
     ack?.({
       ok: true,
       areaId: nextArea,
       position: user.position,
-      users: roomUsers(user.hall, nextArea),
-      parties: getAreaParties(user.hall, nextArea).map(serializeParty)
+      users: roomUsers(nextArea),
+      parties: getAreaParties(nextArea).map(serializeParty)
     });
   });
 
@@ -233,7 +231,7 @@ io.on("connection", (socket) => {
       return;
     }
     user.position = clampPosition(payload);
-    socket.to(getAreaRoomKey(user.hall, user.currentArea)).emit("player:moved", {
+    socket.to(getAreaRoomKey(user.currentArea)).emit("player:moved", {
       id: user.id,
       position: user.position
     });
@@ -265,7 +263,7 @@ io.on("connection", (socket) => {
     };
 
     user.lastMessage = message;
-    const areaUsers = roomUsers(user.hall, user.currentArea);
+    const areaUsers = roomUsers(user.currentArea);
 
     if (scope === "nearby") {
       const nearbyUsers = areaUsers.filter((member) => {
@@ -278,10 +276,10 @@ io.on("connection", (socket) => {
         io.to(member.id).emit("chat:message", chatPayload);
       });
     } else {
-      io.to(getAreaRoomKey(user.hall, user.currentArea)).emit("chat:message", chatPayload);
+      io.to(getAreaRoomKey(user.currentArea)).emit("chat:message", chatPayload);
     }
 
-    io.to(getAreaRoomKey(user.hall, user.currentArea)).emit("player:status", {
+    io.to(getAreaRoomKey(user.currentArea)).emit("player:status", {
       id: user.id,
       lastMessage: message
     });
@@ -306,7 +304,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const parties = getAreaParties(user.hall, user.currentArea);
+    const parties = getAreaParties(user.currentArea);
     const existingParty = parties.find((party) => party.members.some((member) => member.id === user.id));
     if (existingParty) {
       ack?.({ ok: false, message: "이미 이 공간의 파티에 참가 중입니다." });
@@ -324,7 +322,7 @@ io.on("connection", (socket) => {
       members: [user]
     });
 
-    broadcastPartyList(user.hall, user.currentArea);
+    broadcastPartyList(user.currentArea);
     ack?.({ ok: true, message: "파티가 등록되었습니다." });
   });
 
@@ -340,7 +338,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const parties = getAreaParties(user.hall, user.currentArea);
+    const parties = getAreaParties(user.currentArea);
     const party = parties.find((item) => item.id === payload?.partyId);
     if (!party) {
       ack?.({ ok: false, message: "파티를 찾을 수 없습니다." });
@@ -364,7 +362,7 @@ io.on("connection", (socket) => {
     }
 
     party.members.push(user);
-    broadcastPartyList(user.hall, user.currentArea);
+    broadcastPartyList(user.currentArea);
     ack?.({ ok: true, message: `${party.title} 파티에 참가했습니다.` });
   });
 
@@ -375,8 +373,8 @@ io.on("connection", (socket) => {
     }
     users.delete(socket.id);
     removeUserFromParties(user);
-    socket.to(getAreaRoomKey(user.hall, user.currentArea)).emit("player:left", { id: socket.id });
-    broadcastAreaState(user.hall, user.currentArea);
+    socket.to(getAreaRoomKey(user.currentArea)).emit("player:left", { id: socket.id });
+    broadcastAreaState(user.currentArea);
     voiceServer.handleUserDisconnected(user);
   });
 });

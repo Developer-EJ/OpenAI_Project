@@ -1,4 +1,4 @@
-﻿function serializeVoicePeer(user) {
+function serializeVoicePeer(user) {
   return {
     id: user.id,
     name: user.name,
@@ -13,7 +13,7 @@ export function createVoiceServer({ io, users }) {
     return Array.from(users.values()).filter((user) => user.currentArea === areaId);
   }
 
-  function broadcastVoicePeers(_hall, areaId) {
+  function broadcastVoicePeers(areaId) {
     if (!areaId) {
       return;
     }
@@ -54,7 +54,7 @@ export function createVoiceServer({ io, users }) {
       }
 
       user.micEnabled = Boolean(payload.micEnabled);
-      broadcastVoicePeers(user.hall, user.currentArea);
+      broadcastVoicePeers(user.currentArea);
       ack?.({ ok: true, micEnabled: user.micEnabled });
     });
 
@@ -113,14 +113,14 @@ export function createVoiceServer({ io, users }) {
   return {
     registerSocket,
     handleUserJoined(user) {
-      broadcastVoicePeers(user.hall, user.currentArea);
+      broadcastVoicePeers(user.currentArea);
     },
-    handleAreaChanged(hall, previousArea, nextArea) {
-      broadcastVoicePeers(hall, previousArea);
-      broadcastVoicePeers(hall, nextArea);
+    handleAreaChanged(previousArea, nextArea) {
+      broadcastVoicePeers(previousArea);
+      broadcastVoicePeers(nextArea);
     },
     handleUserDisconnected(user) {
-      broadcastVoicePeers(user.hall, user.currentArea);
+      broadcastVoicePeers(user.currentArea);
     }
   };
 }
