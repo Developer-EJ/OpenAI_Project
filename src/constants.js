@@ -1,4 +1,4 @@
-﻿export const HALLS = ["sw-ai랩", "게임랩", "게임 테크랩"];
+export const HALLS = ["sw-ai랩", "게임랩", "게임 테크랩"];
 
 export const MAP = {
   width: 1600,
@@ -7,4 +7,4 @@ export const MAP = {
 };
 
 export const SERVER_URL =
-  import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
+  import.meta.env.VITE_SERVER_URL || "https://jungle-campus-production.up.railway.app";
