@@ -8,6 +8,12 @@ function shouldInitiateOffer(selfId, peerId) {
   return String(selfId) > String(peerId);
 }
 
+function countLiveAudioTracks(stream) {
+  return stream
+    .getAudioTracks()
+    .filter((track) => track.readyState === "live").length;
+}
+
 function describeMediaError(error) {
   if (error?.name === "NotAllowedError") {
     return "마이크 권한이 없어 송신을 시작할 수 없습니다.";
@@ -37,7 +43,11 @@ export function useAreaVoice({ socket, selfId, enabled }) {
   function upsertRemoteStream(peerId, stream) {
     setRemoteStreams((current) => {
       const next = current.filter((item) => item.peerId !== peerId);
-      next.push({ peerId, stream });
+      next.push({
+        peerId,
+        stream,
+        trackCount: countLiveAudioTracks(stream)
+      });
       return next;
     });
   }
@@ -110,13 +120,33 @@ export function useAreaVoice({ socket, selfId, enabled }) {
     const audioTransceiver = pc.addTransceiver("audio", { direction: "recvonly" });
 
     pc.ontrack = (event) => {
+      const audioTracks = [];
+
+      if (event.track?.kind === "audio") {
+        audioTracks.push(event.track);
+      }
+
       event.streams.forEach((stream) => {
         stream.getAudioTracks().forEach((track) => {
-          if (!remoteStream.getAudioTracks().some((item) => item.id === track.id)) {
-            remoteStream.addTrack(track);
+          if (!audioTracks.some((item) => item.id === track.id)) {
+            audioTracks.push(track);
           }
         });
       });
+
+      audioTracks.forEach((track) => {
+        if (!remoteStream.getAudioTracks().some((item) => item.id === track.id)) {
+          remoteStream.addTrack(track);
+        }
+
+        track.onunmute = () => {
+          upsertRemoteStream(peerId, remoteStream);
+        };
+        track.onended = () => {
+          upsertRemoteStream(peerId, remoteStream);
+        };
+      });
+
       upsertRemoteStream(peerId, remoteStream);
     };
 
