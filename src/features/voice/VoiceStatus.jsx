@@ -1,0 +1,60 @@
+import { useEffect, useRef } from "react";
+
+function RemoteAudio({ stream, soundEnabled }) {
+  const audioRef = useRef(null);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    audio.srcObject = stream;
+  }, [stream]);
+
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    audio.muted = !soundEnabled;
+    if (soundEnabled) {
+      audio.play().catch(() => undefined);
+    }
+  }, [soundEnabled, stream]);
+
+  return <audio ref={audioRef} autoPlay playsInline hidden />;
+}
+
+export default function VoiceStatus({
+  currentAreaLabel,
+  micEnabled,
+  soundEnabled,
+  peerSummaries,
+  remoteStreams,
+  voiceError
+}) {
+  const activeMicPeers = peerSummaries.filter((peer) => peer.micEnabled).length;
+
+  return (
+    <>
+      <div className="voice-status-card">
+        <p className="voice-status-title">Area Voice</p>
+        <p>{currentAreaLabel} 안의 사용자끼리만 음성이 연결됩니다.</p>
+        <p>마이크: {micEnabled ? "ON" : "OFF"} (M)</p>
+        <p>수신: {soundEnabled ? "ON" : "OFF"} (V)</p>
+        <p>같은 공간 연결 대상: {peerSummaries.length}명</p>
+        <p>현재 송신 중인 상대: {activeMicPeers}명</p>
+        {voiceError ? <p className="voice-status-error">{voiceError}</p> : null}
+      </div>
+      {remoteStreams.map((item) => (
+        <RemoteAudio
+          key={item.peerId}
+          soundEnabled={soundEnabled}
+          stream={item.stream}
+        />
+      ))}
+    </>
+  );
+}

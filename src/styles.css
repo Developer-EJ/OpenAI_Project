@@ -214,6 +214,31 @@ button {
   gap: 16px;
 }
 
+.voice-status-card {
+  display: grid;
+  gap: 8px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: rgba(24, 38, 31, 0.96);
+  border: 1px solid rgba(77, 227, 164, 0.14);
+  color: #d7f8e8;
+}
+
+.voice-status-card p {
+  margin: 0;
+}
+
+.voice-status-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #4de3a4;
+}
+
+.voice-status-error {
+  color: #ffb49b;
+}
 .canvas-shell {
   overflow: auto;
   border-radius: 22px;

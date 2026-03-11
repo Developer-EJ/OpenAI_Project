@@ -2,6 +2,7 @@ import express from "express";
 import http from "http";
 import cors from "cors";
 import { Server } from "socket.io";
+import { createVoiceServer } from "./voice.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -20,6 +21,7 @@ const MAP_WIDTH = 1600;
 const MAP_HEIGHT = 960;
 const users = new Map();
 const partiesByArea = new Map();
+const voiceServer = createVoiceServer({ io, users });
 
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
@@ -130,6 +132,8 @@ function removeUserFromParties(user) {
 }
 
 io.on("connection", (socket) => {
+  voiceServer.registerSocket(socket);
+
   socket.on("player:join", (payload, ack) => {
     const profile = sanitizeProfile(payload);
     if (!profile.name || !profile.classroom) {
@@ -143,7 +147,8 @@ io.on("connection", (socket) => {
       ...profile,
       position,
       joinedAt: Date.now(),
-      lastMessage: ""
+      lastMessage: "",
+      micEnabled: false
     };
 
     const areaRoomKey = getAreaRoomKey(profile.hall, profile.currentArea);
@@ -157,6 +162,7 @@ io.on("connection", (socket) => {
     });
     socket.to(areaRoomKey).emit("player:joined", player);
     broadcastAreaState(profile.hall, profile.currentArea);
+    voiceServer.handleUserJoined(player);
     if (PARTY_ENABLED_AREAS.includes(profile.currentArea)) {
       broadcastPartyList(profile.hall, profile.currentArea);
     }
@@ -199,6 +205,7 @@ io.on("connection", (socket) => {
     socket.to(getAreaRoomKey(user.hall, nextArea)).emit("player:joined", user);
     broadcastAreaState(user.hall, previousArea);
     broadcastAreaState(user.hall, nextArea);
+    voiceServer.handleAreaChanged(previousArea, nextArea);
     if (PARTY_ENABLED_AREAS.includes(nextArea)) {
       broadcastPartyList(user.hall, nextArea);
     }
@@ -362,6 +369,7 @@ io.on("connection", (socket) => {
     removeUserFromParties(user);
     socket.to(getAreaRoomKey(user.hall, user.currentArea)).emit("player:left", { id: socket.id });
     broadcastAreaState(user.hall, user.currentArea);
+    voiceServer.handleUserDisconnected(user);
   });
 });
 
