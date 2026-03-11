@@ -7,45 +7,12 @@ export const LOBBY_AREA = {
 
 export const AREA_ORDER = ["basketball", "cafeteria", "classroom"];
 
-export const BASKETBALL_SHOT_ZONES = [
-  {
-    id: "paint",
-    label: "골밑",
-    x: 1310,
-    y: 478,
-    radius: 92,
-    points: 2,
-    successRate: 0.72,
-    color: "#ffd166"
-  },
-  {
-    id: "wing",
-    label: "윙",
-    x: 1088,
-    y: 308,
-    radius: 86,
-    points: 2,
-    successRate: 0.56,
-    color: "#f7a072"
-  },
-  {
-    id: "arc",
-    label: "3점 라인",
-    x: 1018,
-    y: 692,
-    radius: 98,
-    points: 3,
-    successRate: 0.38,
-    color: "#70d6ff"
-  }
-];
-
 export const AREA_DEFINITIONS = {
   basketball: {
     id: "basketball",
     name: "Basketball Court",
     koreanName: "농구장",
-    description: "빠른 이동과 가벼운 슛 챌린지가 어울리는 액티브 AREA",
+    description: "빠른 이동과 팀 매칭이 어울리는 액티브 AREA",
     accent: "#d4773f",
     portal: {
       x: 268,
@@ -61,7 +28,7 @@ export const AREA_DEFINITIONS = {
     preview: {
       spawn: { x: 164, y: 216 }
     },
-    highlights: ["빠른 팀 매칭", "슛 챌린지", "액티브 무드"]
+    highlights: ["빠른 팀 매칭", "액티브 무드", "실시간 이동"]
   },
   cafeteria: {
     id: "cafeteria",
@@ -146,22 +113,4 @@ export function isInsidePortal(position, portal) {
   const dx = position.x - portal.x;
   const dy = position.y - portal.y;
   return Math.hypot(dx, dy) <= portal.radius;
-}
-
-export function getBasketballShotZoneAtPosition(position) {
-  if (!position) {
-    return null;
-  }
-
-  const zones = BASKETBALL_SHOT_ZONES
-    .map((zone) => {
-      const dx = position.x - zone.x;
-      const dy = position.y - zone.y;
-      const distance = Math.hypot(dx, dy);
-      return distance <= zone.radius ? { ...zone, distance } : null;
-    })
-    .filter(Boolean)
-    .sort((left, right) => left.distance - right.distance);
-
-  return zones[0] || null;
 }

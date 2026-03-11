@@ -1,18 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import AuthScreen from "./components/AuthScreen";
-import BasketballPanel from "./components/BasketballPanel";
 import ChatPanel from "./components/ChatPanel";
 import HallCanvas from "./components/HallCanvas";
 import PartyPanel from "./components/PartyPanel";
 import VoiceStatus from "./features/voice/VoiceStatus";
 import { createRandomAvatar } from "./avatar";
-import {
-  findAreaByPosition,
-  getAreaById,
-  getBasketballShotZoneAtPosition,
-  isInsidePortal
-} from "./data/areas";
+import { findAreaByPosition, getAreaById, isInsidePortal } from "./data/areas";
 import {
   AREA_META,
   AREA_ORDER,
@@ -27,14 +21,6 @@ import { useAreaVoice } from "./lib/webrtc/useAreaVoice";
 const socket = io(SERVER_URL, {
   autoConnect: false
 });
-
-const EMPTY_BASKETBALL_STATE = {
-  active: false,
-  remainingMs: 0,
-  scoreboard: [],
-  lastShot: null,
-  zones: []
-};
 
 function createSpawn() {
   return {
@@ -72,7 +58,6 @@ export default function App() {
   const [previewAreaId, setPreviewAreaId] = useState(null);
   const [partyPanelCollapsed, setPartyPanelCollapsed] = useState(true);
   const [mobilePanel, setMobilePanel] = useState("party");
-  const [basketballState, setBasketballState] = useState(EMPTY_BASKETBALL_STATE);
   const movementRef = useRef({});
   const joinedRef = useRef(false);
 
@@ -85,7 +70,6 @@ export default function App() {
     setSession(null);
     setPartyMessage("");
     setPreviewAreaId(null);
-    setBasketballState(EMPTY_BASKETBALL_STATE);
     setStatus(message);
   }
 
@@ -105,10 +89,6 @@ export default function App() {
     [currentArea, previewAreaId, nearbyArea]
   );
   const currentAreaConfig = useMemo(() => getAreaById(currentArea), [currentArea]);
-  const currentShotZone = useMemo(
-    () => (currentArea === "basketball" ? getBasketballShotZoneAtPosition(self?.position) : null),
-    [currentArea, self?.position]
-  );
 
   const voice = useAreaVoice({
     socket,
@@ -148,7 +128,6 @@ export default function App() {
     if (!session) {
       joinedRef.current = false;
       setPreviewAreaId(null);
-      setBasketballState(EMPTY_BASKETBALL_STATE);
       if (socket.connected) {
         socket.disconnect();
       }
@@ -222,10 +201,6 @@ export default function App() {
       );
     }
 
-    function handleBasketballState(nextState) {
-      setBasketballState(nextState || EMPTY_BASKETBALL_STATE);
-    }
-
     socket.on("area:state", handleAreaState);
     socket.on("player:joined", handlePlayerJoined);
     socket.on("player:moved", handlePlayerMoved);
@@ -234,7 +209,6 @@ export default function App() {
     socket.on("chat:message", handleChatMessage);
     socket.on("party:list", handlePartyList);
     socket.on("area:changed", handleAreaChanged);
-    socket.on("basketball:state", handleBasketballState);
 
     return () => {
       socket.off("area:state", handleAreaState);
@@ -245,7 +219,6 @@ export default function App() {
       socket.off("chat:message", handleChatMessage);
       socket.off("party:list", handlePartyList);
       socket.off("area:changed", handleAreaChanged);
-      socket.off("basketball:state", handleBasketballState);
     };
   }, [session, currentArea]);
 
@@ -287,7 +260,6 @@ export default function App() {
       setPlayers(response.users || []);
       setParties(response.parties || []);
       setMessages([]);
-      setBasketballState(response.basketball || EMPTY_BASKETBALL_STATE);
       setStatus(
         `${response.player.hall} · ${
           AREA_META[response.player.currentArea]?.label || currentAreaMeta.label
@@ -319,12 +291,6 @@ export default function App() {
           return;
         }
         setPreviewAreaId(null);
-        return;
-      }
-
-      if (event.code === "Space" && currentArea === "basketball") {
-        event.preventDefault();
-        handleBasketballShoot();
         return;
       }
 
@@ -372,7 +338,7 @@ export default function App() {
       window.removeEventListener("keyup", handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [self, currentArea, nearbyArea, currentShotZone, basketballState.active]);
+  }, [self, currentArea, nearbyArea]);
 
   function handleAuthSubmit(form) {
     joinedRef.current = false;
@@ -388,7 +354,6 @@ export default function App() {
     setParties([]);
     setPartyMessage("");
     setPreviewAreaId(null);
-    setBasketballState(EMPTY_BASKETBALL_STATE);
   }
 
   function handleLogout() {
@@ -424,9 +389,6 @@ export default function App() {
         setParties(response.parties || []);
         setMessages([]);
         setPreviewAreaId(null);
-        setBasketballState(
-          response.areaId === "basketball" ? basketballState : EMPTY_BASKETBALL_STATE
-        );
         setStatus(`${AREA_META[response.areaId]?.label || response.areaId}로 이동했습니다.`);
       }
     );
@@ -466,24 +428,6 @@ export default function App() {
     setChatInput("");
   }
 
-  function handleBasketballStart() {
-    socket.emit("basketball:start", (response) => {
-      setStatus(response?.message || "농구 게임을 시작했습니다.");
-    });
-  }
-
-  function handleBasketballShoot() {
-    if (currentArea !== "basketball") {
-      return;
-    }
-
-    socket.emit("basketball:shoot", (response) => {
-      if (response?.message) {
-        setStatus(response.message);
-      }
-    });
-  }
-
   if (!session) {
     return <AuthScreen onSubmit={handleAuthSubmit} />;
   }
@@ -509,13 +453,11 @@ export default function App() {
           <div className="hall-toolbar">
             <p>{status}</p>
             <p>
-              {currentArea === "basketball"
-                ? "슛 존에 들어가면 Space로 슛할 수 있습니다."
-                : PARTY_ENABLED_AREAS.includes(currentArea)
-                  ? "이 공간 전용 파티 보드를 사용할 수 있어요."
-                  : previewArea
-                    ? `${previewArea.koreanName}로 이동 중`
-                    : "메인 로비에서 원하는 공간으로 이동해보세요."}
+              {PARTY_ENABLED_AREAS.includes(currentArea)
+                ? "이 공간 전용 파티 보드를 사용할 수 있어요."
+                : previewArea
+                  ? `${previewArea.koreanName}로 이동 중`
+                  : "메인 로비에서 원하는 공간으로 이동해보세요."}
             </p>
           </div>
           <VoiceStatus
@@ -526,23 +468,11 @@ export default function App() {
             remoteStreams={voice.remoteStreams}
             voiceError={voice.voiceError}
           />
-          {currentArea === "basketball" ? (
-            <BasketballPanel
-              gameState={basketballState}
-              currentZone={currentShotZone}
-              onStartGame={handleBasketballStart}
-              onShoot={handleBasketballShoot}
-              canStart={!basketballState.active}
-              canShoot={basketballState.active && Boolean(currentShotZone)}
-            />
-          ) : null}
           <HallCanvas
             currentArea={currentArea}
             players={players}
             previewAreaId={previewArea?.id || null}
             onPortalSelect={handleAreaChange}
-            currentShotZoneId={currentShotZone?.id || null}
-            basketballGameActive={basketballState.active}
           />
           <div className="mobile-panel-switcher">
             <button
