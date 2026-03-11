@@ -4,6 +4,7 @@ import AuthScreen from "./components/AuthScreen";
 import ChatPanel from "./components/ChatPanel";
 import HallCanvas from "./components/HallCanvas";
 import PartyPanel from "./components/PartyPanel";
+import VoiceStatus from "./features/voice/VoiceStatus";
 import { createRandomAvatar } from "./avatar";
 import { findAreaByPosition, getAreaById, isInsidePortal } from "./data/areas";
 import {
@@ -14,6 +15,7 @@ import {
   SERVER_URL
 } from "./constants";
 import { clampPosition, loadSession, saveSession } from "./utils";
+import { useAreaVoice } from "./lib/webrtc/useAreaVoice";
 
 const socket = io(SERVER_URL, {
   autoConnect: false
@@ -86,6 +88,12 @@ export default function App() {
     [currentArea, previewAreaId, nearbyArea]
   );
   const currentAreaConfig = useMemo(() => getAreaById(currentArea), [currentArea]);
+
+  const voice = useAreaVoice({
+    socket,
+    selfId: self?.id || "",
+    enabled: Boolean(session && self)
+  });
 
   useEffect(() => {
     if (currentArea !== DEFAULT_AREA_ID) {
@@ -411,6 +419,14 @@ export default function App() {
                   : "메인 로비에서 원하는 공간으로 이동해보세요."}
             </p>
           </div>
+          <VoiceStatus
+            currentAreaLabel={currentAreaMeta.label}
+            micEnabled={voice.micEnabled}
+            soundEnabled={voice.soundEnabled}
+            peerSummaries={voice.peerSummaries}
+            remoteStreams={voice.remoteStreams}
+            voiceError={voice.voiceError}
+          />
           <HallCanvas
             currentArea={currentArea}
             players={players}
