@@ -12,22 +12,36 @@ export default function PartyPanel({
   currentArea,
   parties,
   selfId,
+  collapsed,
   createForm,
   onCreateFormChange,
   onCreateParty,
   onJoinParty,
   onAreaChange,
+  onToggleCollapsed,
   partyMessage
 }) {
   const areaMeta = AREA_META[currentArea] || AREA_META[DEFAULT_AREA_ID];
   const canCreateParty = PARTY_ENABLED_AREAS.includes(currentArea);
 
   return (
-    <aside className="party-panel">
+    <aside className={`party-panel${collapsed ? " is-collapsed" : ""}`}>
+      <button
+        type="button"
+        className="party-toggle-handle"
+        onClick={onToggleCollapsed}
+        aria-label={collapsed ? "Area Navigator 펼치기" : "Area Navigator 접기"}
+      >
+        {collapsed ? "<<" : ">>"}
+      </button>
       <div className="party-header-card">
-        <p className="eyebrow">Area Navigator</p>
-        <h2>{areaMeta.label}</h2>
-        <p>{areaMeta.description}</p>
+        <div className="party-header-row">
+          <div className="party-header-copy">
+            <p className="eyebrow">Area Navigator</p>
+            <h2>{collapsed ? "AREA" : areaMeta.label}</h2>
+            {!collapsed ? <p>{areaMeta.description}</p> : null}
+          </div>
+        </div>
       </div>
 
       <div className="area-switcher">
@@ -39,14 +53,16 @@ export default function PartyPanel({
               className={`area-chip${currentArea === areaId ? " is-active" : ""}`}
               type="button"
               onClick={() => onAreaChange(areaId)}
+              title={area.label}
             >
-              <span>{area.label}</span>
-              <small>{areaId === DEFAULT_AREA_ID ? "허브" : "파티존"}</small>
+              <span>{collapsed ? area.label.slice(0, 2) : area.label}</span>
+              {collapsed ? null : <small>{areaId === DEFAULT_AREA_ID ? "허브" : "파티존"}</small>}
             </button>
           );
         })}
       </div>
 
+      {collapsed ? null : (
       <div className="party-board">
         <div className="party-board-header">
           <div>
@@ -136,6 +152,7 @@ export default function PartyPanel({
           )}
         </div>
       </div>
+      )}
     </aside>
   );
 }
