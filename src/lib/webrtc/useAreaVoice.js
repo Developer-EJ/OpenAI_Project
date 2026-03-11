@@ -335,6 +335,7 @@ export function useAreaVoice({ socket, selfId, enabled }) {
     socket.on("voice:peers", handleVoicePeers);
     socket.on("voice:signal", handleVoiceSignal);
     socket.on("voice:renegotiate-request", handleRenegotiateRequest);
+    socket.emit("voice:sync");
     socket.emit("voice:state", { micEnabled: false });
 
     return () => {

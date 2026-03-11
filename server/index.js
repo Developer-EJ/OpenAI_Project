@@ -213,7 +213,7 @@ io.on("connection", (socket) => {
 
     broadcastAreaState(user.hall, previousArea);
     broadcastAreaState(user.hall, nextArea);
-    voiceServer.handleAreaChanged(previousArea, nextArea);
+    voiceServer.handleAreaChanged(user.hall, previousArea, nextArea);
     if (PARTY_ENABLED_AREAS.includes(nextArea)) {
       broadcastPartyList(user.hall, nextArea);
     }
