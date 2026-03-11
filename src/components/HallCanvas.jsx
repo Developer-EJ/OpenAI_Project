@@ -9,7 +9,7 @@ import cafeBurgerUrl from "../assets/cafe-burger.png";
 import cafeSushiUrl from "../assets/cafe-sushi.png";
 import { createRandomAvatar } from "../avatar";
 import { AREA_META, DEFAULT_AREA_ID, MAP } from "../constants";
-import { AREAS, BASKETBALL_SHOT_ZONES, getAreaById } from "../data/areas";
+import { AREAS, getAreaById } from "../data/areas";
 
 let lobbyLogoImage = null;
 let appleLogoImage = null;
@@ -721,7 +721,7 @@ function drawBasketballZones(ctx, currentShotZoneId, basketballGameActive) {
   ctx.restore();
 }
 
-function drawAreaScene(ctx, areaId, currentShotZoneId, basketballGameActive) {
+function drawAreaScene(ctx, areaId) {
   ctx.clearRect(0, 0, MAP.width, MAP.height);
   ctx.imageSmoothingEnabled = false;
   const tile = 16;
@@ -784,7 +784,6 @@ function drawAreaScene(ctx, areaId, currentShotZoneId, basketballGameActive) {
     sprinklePixels(ctx, "#d36a39", [
       [264, 180, 4], [416, 212, 4], [1184, 226, 4], [352, 680, 4], [1068, 710, 4]
     ]);
-    drawBasketballZones(ctx, currentShotZoneId, basketballGameActive);
   } else if (areaId === "cafeteria") {
     for (let y = 0; y < MAP.height; y += tile) {
       for (let x = 0; x < MAP.width; x += tile) {
@@ -941,7 +940,7 @@ export default function HallCanvas({
     if (resolvedAreaId === DEFAULT_AREA_ID) {
       drawLobbyScene(ctx, previewAreaId);
     } else {
-      drawAreaScene(ctx, resolvedAreaId, currentShotZoneId, basketballGameActive);
+      drawAreaScene(ctx, resolvedAreaId);
     }
 
     const nextPositions = new Map();
@@ -962,7 +961,7 @@ export default function HallCanvas({
       }
     });
     previousPositionsRef.current = nextPositions;
-  }, [currentArea, players, previewAreaId, currentShotZoneId, basketballGameActive]);
+  }, [currentArea, players, previewAreaId]);
 
   function handleCanvasClick(event) {
     if (currentArea !== DEFAULT_AREA_ID) {
