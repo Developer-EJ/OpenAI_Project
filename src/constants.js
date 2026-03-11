@@ -40,6 +40,7 @@ export const MAP = {
 };
 
 const DEFAULT_REMOTE_SERVER_URL = "https://jungle-campus-production.up.railway.app";
+const DEFAULT_STUN_URLS = ["stun:stun.l.google.com:19302"];
 
 function getDefaultServerUrl() {
   if (typeof window === "undefined") {
@@ -57,3 +58,33 @@ function getDefaultServerUrl() {
 
 export const SERVER_URL =
   import.meta.env.VITE_SERVER_URL || getDefaultServerUrl();
+
+function parseIceUrls(value) {
+  return String(value || "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+}
+
+export function getIceServerConfig() {
+  const stunUrls = parseIceUrls(import.meta.env.VITE_STUN_URLS);
+  const turnUrls = parseIceUrls(import.meta.env.VITE_TURN_URLS);
+  const turnUsername = String(import.meta.env.VITE_TURN_USERNAME || "").trim();
+  const turnCredential = String(import.meta.env.VITE_TURN_CREDENTIAL || "").trim();
+
+  const iceServers = [];
+
+  iceServers.push({
+    urls: stunUrls.length > 0 ? stunUrls : DEFAULT_STUN_URLS
+  });
+
+  if (turnUrls.length > 0 && turnUsername && turnCredential) {
+    iceServers.push({
+      urls: turnUrls,
+      username: turnUsername,
+      credential: turnCredential
+    });
+  }
+
+  return { iceServers };
+}

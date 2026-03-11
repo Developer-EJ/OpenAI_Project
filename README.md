@@ -15,6 +15,7 @@ Jungle Campus는 교육 과정 구성원이 같은 가상 캠퍼스에 접속해
 - 실제 실시간 동기화 기준은 `hall`이 아니라 `area`입니다.
 - 같은 `area`에 있는 사용자끼리만 위치, 채팅, 파티, 음성 연결이 맞물립니다.
 
+<<<<<<< HEAD
 ## 주요 기능
 
 - 교육 과정 선택과 로그인
@@ -177,3 +178,25 @@ server/
 
 역할:
 - 직접 연결이 어려운 네트워크 환경에서 TURN 릴레이 제공
+
+## 프론트 배포
+
+- Vercel 프로젝트로 배포
+- Environment Variable: `VITE_SERVER_URL=https://<your-socket-server>`
+- Optional TURN Variables:
+  - `VITE_STUN_URLS=stun:stun.l.google.com:19302`
+  - `VITE_TURN_URLS=turn:13.209.50.7:3478?transport=udp,turn:13.209.50.7:3478?transport=tcp`
+  - `VITE_TURN_USERNAME=jungleturn`
+  - `VITE_TURN_CREDENTIAL=<your-turn-password>`
+
+## TURN 서버
+
+- WebRTC 음성 연결 안정성을 위해 별도 TURN 서버를 함께 두는 것을 권장합니다.
+- 현재 클라이언트는 `VITE_TURN_URLS`, `VITE_TURN_USERNAME`, `VITE_TURN_CREDENTIAL`이 모두 설정된 경우 TURN을 함께 사용합니다.
+- EC2 `coturn` 예시:
+  - Public IP: `13.209.50.7`
+  - TURN URL: `turn:13.209.50.7:3478?transport=udp`
+  - TURN URL: `turn:13.209.50.7:3478?transport=tcp`
+- AWS Security Group 인바운드에서 최소 아래 포트를 열어야 합니다.
+  - `3478` UDP/TCP
+  - `49160-49200` UDP

@@ -1,8 +1,7 @@
 ﻿import { useEffect, useRef, useState } from "react";
+import { getIceServerConfig } from "../../constants";
 
-const ICE_SERVERS = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-};
+const ICE_SERVERS = getIceServerConfig();
 
 function shouldInitiateOffer(selfId, peerId) {
   return String(selfId) > String(peerId);
