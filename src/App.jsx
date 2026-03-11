@@ -1,10 +1,18 @@
-﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { io } from "socket.io-client";
 import AuthScreen from "./components/AuthScreen";
 import ChatPanel from "./components/ChatPanel";
 import HallCanvas from "./components/HallCanvas";
+import PartyPanel from "./components/PartyPanel";
 import { createRandomAvatar } from "./avatar";
-import { MAP, SERVER_URL } from "./constants";
+import { findAreaByPosition, getAreaById, isInsidePortal } from "./data/areas";
+import {
+  AREA_META,
+  DEFAULT_AREA_ID,
+  MAP,
+  PARTY_ENABLED_AREAS,
+  SERVER_URL
+} from "./constants";
 import { clampPosition, loadSession, saveSession } from "./utils";
 
 const socket = io(SERVER_URL, {
@@ -22,20 +30,79 @@ export default function App() {
   const [session, setSession] = useState(() => loadSession());
   const [players, setPlayers] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [parties, setParties] = useState([]);
+  const [partyMessage, setPartyMessage] = useState("");
+  const [partyForm, setPartyForm] = useState({ title: "", maxMembers: 4 });
   const [chatInput, setChatInput] = useState("");
   const [chatScope, setChatScope] = useState("global");
   const [status, setStatus] = useState("로그인 후 입장하세요.");
+  const [previewAreaId, setPreviewAreaId] = useState(null);
+  const [partyPanelCollapsed, setPartyPanelCollapsed] = useState(false);
+  const [mobilePanel, setMobilePanel] = useState("party");
   const movementRef = useRef({});
   const joinedRef = useRef(false);
+
+  function resetSessionState(message) {
+    joinedRef.current = false;
+    localStorage.removeItem("jungle-campus-session");
+    setPlayers([]);
+    setMessages([]);
+    setParties([]);
+    setSession(null);
+    setPartyMessage("");
+    setPreviewAreaId(null);
+    setStatus(message);
+  }
+
+  const currentArea = session?.currentArea || DEFAULT_AREA_ID;
+  const currentAreaMeta = AREA_META[currentArea] || AREA_META[DEFAULT_AREA_ID];
 
   const self = useMemo(
     () => players.find((player) => player.id === socket.id) || null,
     [players]
   );
+  const nearbyArea = useMemo(
+    () => (currentArea === DEFAULT_AREA_ID ? findAreaByPosition(self?.position) : null),
+    [currentArea, self?.position]
+  );
+  const previewArea = useMemo(
+    () => (currentArea === DEFAULT_AREA_ID ? getAreaById(previewAreaId) || nearbyArea : null),
+    [currentArea, previewAreaId, nearbyArea]
+  );
+  const currentAreaConfig = useMemo(() => getAreaById(currentArea), [currentArea]);
+
+  useEffect(() => {
+    if (currentArea !== DEFAULT_AREA_ID) {
+      setPreviewAreaId(null);
+      return;
+    }
+
+    setPreviewAreaId((current) => nearbyArea?.id || current);
+  }, [currentArea, nearbyArea?.id]);
+
+  useEffect(() => {
+    if (!self) {
+      return;
+    }
+
+    if (currentArea === DEFAULT_AREA_ID && nearbyArea) {
+      handleAreaChange(nearbyArea.id);
+      return;
+    }
+
+    if (
+      currentArea !== DEFAULT_AREA_ID &&
+      currentAreaConfig?.returnPortal &&
+      isInsidePortal(self.position, currentAreaConfig.returnPortal)
+    ) {
+      handleAreaChange(DEFAULT_AREA_ID);
+    }
+  }, [self?.position, currentArea, nearbyArea?.id, currentAreaConfig?.returnPortal?.x]);
 
   useEffect(() => {
     if (!session) {
       joinedRef.current = false;
+      setPreviewAreaId(null);
       if (socket.connected) {
         socket.disconnect();
       }
@@ -52,6 +119,7 @@ export default function App() {
 
     const payload = {
       ...session,
+      currentArea: session.currentArea || DEFAULT_AREA_ID,
       avatar: session.avatar || createRandomAvatar(),
       position: session.position || createSpawn()
     };
@@ -62,16 +130,28 @@ export default function App() {
         return;
       }
 
+      if (!response?.player || !response.player.hall) {
+        resetSessionState("세션 정보가 올바르지 않아 다시 로그인해주세요.");
+        return;
+      }
+
       joinedRef.current = true;
-      saveSession({
+      const nextSession = {
         ...payload,
+        currentArea: response.player.currentArea,
         position: response.player.position
-      });
-      setPlayers(response.users);
-      setStatus(`${response.player.hall}에 입장했습니다.`);
+      };
+      saveSession(nextSession);
+      setSession(nextSession);
+      setPlayers(response.users || []);
+      setParties(response.parties || []);
+      setMessages([]);
+      setStatus(
+        `${response.player.hall} · ${AREA_META[response.player.currentArea]?.label || currentAreaMeta.label}에 입장했습니다.`
+      );
     });
 
-    const onHallState = (nextUsers) => setPlayers(nextUsers);
+    const onAreaState = ({ users: nextUsers }) => setPlayers(nextUsers);
     const onPlayerJoined = (player) => setStatus(`${player.name} 님이 입장했습니다.`);
     const onPlayerMoved = ({ id, position }) => {
       setPlayers((current) =>
@@ -93,23 +173,44 @@ export default function App() {
     const onChatMessage = (message) => {
       setMessages((current) => [...current.slice(-39), message]);
     };
+    const onPartyList = (nextParties) => {
+      setParties(nextParties);
+    };
+    const onAreaChanged = (response) => {
+      setPlayers(response.users || []);
+      setParties(response.parties || []);
+      setMessages([]);
+      setSession((current) =>
+        current
+          ? {
+              ...current,
+              currentArea: response.areaId,
+              position: response.position || createSpawn()
+            }
+          : current
+      );
+    };
 
-    socket.on("hall:state", onHallState);
+    socket.on("area:state", onAreaState);
     socket.on("player:joined", onPlayerJoined);
     socket.on("player:moved", onPlayerMoved);
     socket.on("player:left", onPlayerLeft);
     socket.on("player:status", onPlayerStatus);
     socket.on("chat:message", onChatMessage);
+    socket.on("party:list", onPartyList);
+    socket.on("area:changed", onAreaChanged);
 
     return () => {
-      socket.off("hall:state", onHallState);
+      socket.off("area:state", onAreaState);
       socket.off("player:joined", onPlayerJoined);
       socket.off("player:moved", onPlayerMoved);
       socket.off("player:left", onPlayerLeft);
       socket.off("player:status", onPlayerStatus);
       socket.off("chat:message", onChatMessage);
+      socket.off("party:list", onPartyList);
+      socket.off("area:changed", onAreaChanged);
     };
-  }, [session]);
+  }, [session, currentAreaMeta.label]);
 
   useEffect(() => {
     if (!self) {
@@ -117,9 +218,19 @@ export default function App() {
     }
 
     function handleKeyDown(event) {
-      if (event.target.tagName === "INPUT" || event.target.tagName === "SELECT") {
+      if (["INPUT", "SELECT", "TEXTAREA", "BUTTON"].includes(event.target.tagName)) {
         return;
       }
+
+      if (event.key === "Escape") {
+        if (currentArea !== DEFAULT_AREA_ID) {
+          handleAreaChange(DEFAULT_AREA_ID);
+          return;
+        }
+        setPreviewAreaId(null);
+        return;
+      }
+
       movementRef.current[event.key] = true;
     }
 
@@ -164,27 +275,80 @@ export default function App() {
       window.removeEventListener("keyup", handleKeyUp);
       cancelAnimationFrame(animationFrameId);
     };
-  }, [self]);
+  }, [self, currentArea, nearbyArea]);
 
   function handleAuthSubmit(form) {
     joinedRef.current = false;
     const nextSession = {
       ...form,
+      currentArea: DEFAULT_AREA_ID,
       avatar: createRandomAvatar(),
       position: createSpawn()
     };
     setSession(nextSession);
     saveSession(nextSession);
     setMessages([]);
+    setParties([]);
+    setPartyMessage("");
+    setPreviewAreaId(null);
   }
 
   function handleLogout() {
-    joinedRef.current = false;
-    localStorage.removeItem("jungle-campus-session");
-    setPlayers([]);
-    setMessages([]);
-    setSession(null);
-    setStatus("로그아웃되었습니다.");
+    resetSessionState("로그아웃되었습니다.");
+  }
+
+  function handleAreaChange(areaId) {
+    if (!session || areaId === currentArea) {
+      return;
+    }
+
+    setPartyMessage("");
+    socket.emit(
+      "area:change",
+      {
+        areaId,
+        position: createSpawn()
+      },
+      (response) => {
+        if (!response?.ok) {
+          setStatus(response?.message || "공간 이동에 실패했습니다.");
+          return;
+        }
+
+        const nextSession = {
+          ...session,
+          currentArea: response.areaId,
+          position: response.position || createSpawn()
+        };
+        setSession(nextSession);
+        saveSession(nextSession);
+        setPlayers(response.users || []);
+        setParties(response.parties || []);
+        setMessages([]);
+        setPreviewAreaId(null);
+        setStatus(`${AREA_META[response.areaId]?.label || response.areaId}로 이동했습니다.`);
+      }
+    );
+  }
+
+  function handlePartyFormChange(key, value) {
+    setPartyForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function handlePartyCreate(event) {
+    event.preventDefault();
+    socket.emit("party:create", partyForm, (response) => {
+      setPartyMessage(response?.message || "파티 생성 요청이 완료되었습니다.");
+      if (response?.ok) {
+        setPartyForm({ title: "", maxMembers: 4 });
+      }
+    });
+  }
+
+  function handlePartyJoin(partyId) {
+    socket.emit("party:join", { partyId }, (response) => {
+      setPartyMessage(response?.message || "파티 참가 요청이 완료되었습니다.");
+    });
   }
 
   function handleSendMessage(event) {
@@ -193,6 +357,7 @@ export default function App() {
     if (!trimmed || !self) {
       return;
     }
+
     socket.emit("chat:send", {
       message: trimmed,
       scope: chatScope
@@ -208,31 +373,77 @@ export default function App() {
     <div className="shell shell-app">
       <header className="topbar">
         <div>
-          <p className="eyebrow">KRAFTON JUNGLE</p>
-          <h1>{session.hall}</h1>
+          <p className="eyebrow">{session.hall}</p>
+          <h1>{currentAreaMeta.label}</h1>
         </div>
         <div className="topbar-meta">
           <span>{session.classroom}</span>
+          <span>currentArea: {currentArea}</span>
           <span>{players.length}명 접속 중</span>
           <button className="ghost-button" type="button" onClick={handleLogout}>나가기</button>
         </div>
       </header>
-      <main className="layout">
+      <main className={`layout layout-three-column${partyPanelCollapsed ? " is-party-collapsed" : ""}`}>
         <section className="hall-panel">
           <div className="hall-toolbar">
             <p>{status}</p>
-            <p>WASD 또는 방향키로 이동</p>
+            <p>
+              {PARTY_ENABLED_AREAS.includes(currentArea)
+                ? "이 공간 전용 파티 보드를 사용할 수 있어요."
+                : previewArea
+                  ? `${previewArea.koreanName}로 이동 중`
+                  : "메인 로비에서 원하는 공간으로 이동해보세요."}
+            </p>
           </div>
-          <HallCanvas players={players} />
+          <HallCanvas
+            currentArea={currentArea}
+            players={players}
+            previewAreaId={previewArea?.id || null}
+            onPortalSelect={handleAreaChange}
+          />
+          <div className="mobile-panel-switcher">
+            <button
+              type="button"
+              className={`mobile-panel-chip${mobilePanel === "party" ? " is-active" : ""}`}
+              onClick={() => setMobilePanel("party")}
+            >
+              파티
+            </button>
+            <button
+              type="button"
+              className={`mobile-panel-chip${mobilePanel === "chat" ? " is-active" : ""}`}
+              onClick={() => setMobilePanel("chat")}
+            >
+              채팅
+            </button>
+          </div>
         </section>
-        <ChatPanel
-          messages={messages}
-          input={chatInput}
-          scope={chatScope}
-          onInputChange={setChatInput}
-          onScopeChange={setChatScope}
-          onSubmit={handleSendMessage}
-        />
+        <div className={`mobile-panel-slot${mobilePanel === "party" ? " is-active" : ""}`}>
+          <PartyPanel
+            currentArea={currentArea}
+            parties={parties}
+            selfId={self?.id}
+            collapsed={partyPanelCollapsed}
+            createForm={partyForm}
+            onCreateFormChange={handlePartyFormChange}
+            onCreateParty={handlePartyCreate}
+            onJoinParty={handlePartyJoin}
+            onAreaChange={handleAreaChange}
+            onToggleCollapsed={() => setPartyPanelCollapsed((current) => !current)}
+            partyMessage={partyMessage}
+          />
+        </div>
+        <div className={`mobile-panel-slot${mobilePanel === "chat" ? " is-active" : ""}`}>
+          <ChatPanel
+            currentAreaLabel={currentAreaMeta.label}
+            messages={messages}
+            input={chatInput}
+            scope={chatScope}
+            onInputChange={setChatInput}
+            onScopeChange={setChatScope}
+            onSubmit={handleSendMessage}
+          />
+        </div>
       </main>
     </div>
   );
