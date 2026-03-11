@@ -18,8 +18,16 @@ const AREA_IDS = ["lobby", "basketball", "classroom", "cafeteria"];
 const PARTY_ENABLED_AREAS = AREA_IDS.filter((areaId) => areaId !== "lobby");
 const MAP_WIDTH = 1600;
 const MAP_HEIGHT = 960;
+const BASKETBALL_GAME_DURATION_MS = 45_000;
+const BASKETBALL_SHOT_COOLDOWN_MS = 900;
+const BASKETBALL_SHOT_ZONES = [
+  { id: "paint", label: "골밑", x: 1310, y: 478, radius: 92, points: 2, successRate: 0.72 },
+  { id: "wing", label: "윙", x: 1088, y: 308, radius: 86, points: 2, successRate: 0.56 },
+  { id: "arc", label: "3점 라인", x: 1018, y: 692, radius: 98, points: 3, successRate: 0.38 }
+];
 const users = new Map();
 const partiesByArea = new Map();
+const basketballGames = new Map();
 
 app.use(cors({ origin: allowedOrigin }));
 app.use(express.json());
@@ -27,6 +35,113 @@ app.use(express.json());
 app.get("/health", (_req, res) => {
   res.json({ ok: true, halls: HALLS, areas: AREA_IDS });
 });
+
+function createBasketballGame() {
+  return {
+    active: false,
+    endsAt: 0,
+    scores: {},
+    playerNames: {},
+    lastShot: null,
+    timer: null
+  };
+}
+
+function getBasketballGame(hall) {
+  if (!basketballGames.has(hall)) {
+    basketballGames.set(hall, createBasketballGame());
+  }
+  return basketballGames.get(hall);
+}
+
+function normalizeBasketballGame(hall) {
+  const game = getBasketballGame(hall);
+  if (game.active && game.endsAt <= Date.now()) {
+    game.active = false;
+    game.endsAt = 0;
+    if (game.timer) {
+      clearTimeout(game.timer);
+      game.timer = null;
+    }
+    game.lastShot = {
+      message: "경기 종료. 점수판을 확인해보세요.",
+      made: false,
+      points: 0,
+      at: Date.now()
+    };
+  }
+  return game;
+}
+
+function getHallUsers(hall) {
+  return Array.from(users.values()).filter((user) => user.hall === hall);
+}
+
+function serializeBasketballState(hall) {
+  const game = normalizeBasketballGame(hall);
+  const hallUsers = getHallUsers(hall);
+  const userNames = new Map(hallUsers.map((user) => [user.id, user.name]));
+  const scoreboard = Object.entries(game.scores)
+    .map(([id, score]) => ({
+      id,
+      name: game.playerNames[id] || userNames.get(id) || "Unknown Player",
+      score
+    }))
+    .sort((left, right) => right.score - left.score || left.name.localeCompare(right.name, "ko"));
+
+  return {
+    active: game.active,
+    remainingMs: game.active ? Math.max(0, game.endsAt - Date.now()) : 0,
+    endsAt: game.endsAt,
+    scoreboard,
+    lastShot: game.lastShot,
+    zones: BASKETBALL_SHOT_ZONES.map(({ id, label, points, successRate }) => ({
+      id,
+      label,
+      points,
+      successRate
+    }))
+  };
+}
+
+function getNearestBasketballShotZone(position) {
+  const matches = BASKETBALL_SHOT_ZONES
+    .map((zone) => {
+      const dx = position.x - zone.x;
+      const dy = position.y - zone.y;
+      const distance = Math.hypot(dx, dy);
+      return distance <= zone.radius ? { ...zone, distance } : null;
+    })
+    .filter(Boolean)
+    .sort((left, right) => left.distance - right.distance);
+
+  return matches[0] || null;
+}
+
+function getAreaRoomKey(hall, currentArea) {
+  return `${hall}:${currentArea}`;
+}
+
+function broadcastBasketballState(hall) {
+  io.to(getAreaRoomKey(hall, "basketball")).emit("basketball:state", serializeBasketballState(hall));
+}
+
+function endBasketballGame(hall, message = "경기 종료. 점수판을 확인해보세요.") {
+  const game = getBasketballGame(hall);
+  if (game.timer) {
+    clearTimeout(game.timer);
+    game.timer = null;
+  }
+  game.active = false;
+  game.endsAt = 0;
+  game.lastShot = {
+    message,
+    made: false,
+    points: 0,
+    at: Date.now()
+  };
+  broadcastBasketballState(hall);
+}
 
 function clampPosition(position = {}) {
   const x = Math.max(56, Math.min(MAP_WIDTH - 56, Number(position.x) || 160));
@@ -41,10 +156,6 @@ function sanitizeProfile(payload = {}) {
   const avatar = payload.avatar && typeof payload.avatar === "object" ? payload.avatar : null;
   const currentArea = AREA_IDS.includes(payload.currentArea) ? payload.currentArea : "lobby";
   return { name, classroom, hall, avatar, currentArea };
-}
-
-function getAreaRoomKey(hall, currentArea) {
-  return `${hall}:${currentArea}`;
 }
 
 function roomUsers(hall, currentArea) {
@@ -133,7 +244,7 @@ io.on("connection", (socket) => {
   socket.on("player:join", (payload, ack) => {
     const profile = sanitizeProfile(payload);
     if (!profile.name || !profile.classroom) {
-      ack?.({ ok: false, message: "이름과 교육실이 필요합니다." });
+      ack?.({ ok: false, message: "이름과 교육실은 필수입니다." });
       return;
     }
 
@@ -143,22 +254,31 @@ io.on("connection", (socket) => {
       ...profile,
       position,
       joinedAt: Date.now(),
-      lastMessage: ""
+      lastMessage: "",
+      lastBasketballShotAt: 0
     };
 
     const areaRoomKey = getAreaRoomKey(profile.hall, profile.currentArea);
     users.set(socket.id, player);
     socket.join(areaRoomKey);
-    ack?.({
-      ok: true,
-      player,
-      users: roomUsers(profile.hall, profile.currentArea),
-      parties: getAreaParties(profile.hall, profile.currentArea).map(serializeParty)
-    });
+
     socket.to(areaRoomKey).emit("player:joined", player);
     broadcastAreaState(profile.hall, profile.currentArea);
     if (PARTY_ENABLED_AREAS.includes(profile.currentArea)) {
       broadcastPartyList(profile.hall, profile.currentArea);
+    }
+
+    ack?.({
+      ok: true,
+      message: `${profile.name}님, 캠퍼스에 입장했습니다.`,
+      player,
+      users: roomUsers(profile.hall, profile.currentArea),
+      parties: getAreaParties(profile.hall, profile.currentArea).map(serializeParty),
+      basketball: profile.currentArea === "basketball" ? serializeBasketballState(profile.hall) : null
+    });
+
+    if (profile.currentArea === "basketball") {
+      socket.emit("basketball:state", serializeBasketballState(profile.hall));
     }
   });
 
@@ -174,6 +294,7 @@ io.on("connection", (socket) => {
       ack?.({
         ok: true,
         areaId: user.currentArea,
+        position: user.position,
         users: roomUsers(user.hall, user.currentArea),
         parties: getAreaParties(user.hall, user.currentArea).map(serializeParty)
       });
@@ -181,26 +302,34 @@ io.on("connection", (socket) => {
     }
 
     const previousArea = user.currentArea;
+    const previousRoomKey = getAreaRoomKey(user.hall, previousArea);
+    socket.leave(previousRoomKey);
     removeUserFromPartiesForArea(user, previousArea);
-    socket.leave(getAreaRoomKey(user.hall, previousArea));
-    user.currentArea = nextArea;
-    user.position = clampPosition(payload?.position || { x: 180, y: 220 });
-    user.lastMessage = "";
-    socket.join(getAreaRoomKey(user.hall, nextArea));
 
-    socket.emit("area:changed", {
+    user.currentArea = nextArea;
+    user.position = clampPosition(payload?.position);
+    user.lastMessage = "";
+    const nextRoomKey = getAreaRoomKey(user.hall, nextArea);
+    socket.join(nextRoomKey);
+
+    socket.to(previousRoomKey).emit("player:left", { id: user.id });
+    socket.to(nextRoomKey).emit("player:joined", user);
+    io.to(nextRoomKey).emit("area:changed", {
+      playerId: user.id,
       areaId: nextArea,
-      position: user.position,
-      users: roomUsers(user.hall, nextArea),
-      parties: getAreaParties(user.hall, nextArea).map(serializeParty)
+      position: user.position
     });
 
-    socket.to(getAreaRoomKey(user.hall, previousArea)).emit("player:left", { id: user.id });
-    socket.to(getAreaRoomKey(user.hall, nextArea)).emit("player:joined", user);
     broadcastAreaState(user.hall, previousArea);
     broadcastAreaState(user.hall, nextArea);
     if (PARTY_ENABLED_AREAS.includes(nextArea)) {
       broadcastPartyList(user.hall, nextArea);
+    }
+    if (nextArea === "basketball" || previousArea === "basketball") {
+      broadcastBasketballState(user.hall);
+    }
+    if (nextArea === "basketball") {
+      socket.emit("basketball:state", serializeBasketballState(user.hall));
     }
 
     ack?.({
@@ -353,6 +482,90 @@ io.on("connection", (socket) => {
     ack?.({ ok: true, message: `${party.title} 파티에 참가했습니다.` });
   });
 
+  socket.on("basketball:start", (ack) => {
+    const user = users.get(socket.id);
+    if (!user || user.currentArea !== "basketball") {
+      ack?.({ ok: false, message: "농구장에서만 게임을 시작할 수 있습니다." });
+      return;
+    }
+
+    const game = normalizeBasketballGame(user.hall);
+    if (game.active) {
+      ack?.({ ok: false, message: "이미 진행 중인 농구 게임이 있습니다." });
+      return;
+    }
+
+    game.active = true;
+    game.endsAt = Date.now() + BASKETBALL_GAME_DURATION_MS;
+    game.scores = {};
+    game.playerNames = {};
+    roomUsers(user.hall, "basketball").forEach((player) => {
+      game.playerNames[player.id] = player.name;
+    });
+    game.lastShot = {
+      message: `${user.name}님이 45초 슛 챌린지를 시작했습니다!`,
+      made: false,
+      points: 0,
+      at: Date.now()
+    };
+    game.timer = setTimeout(() => {
+      endBasketballGame(user.hall);
+    }, BASKETBALL_GAME_DURATION_MS + 50);
+
+    broadcastBasketballState(user.hall);
+    ack?.({ ok: true, message: "농구 게임 시작! 슛 존으로 이동해보세요." });
+  });
+
+  socket.on("basketball:shoot", (ack) => {
+    const user = users.get(socket.id);
+    if (!user || user.currentArea !== "basketball") {
+      ack?.({ ok: false, message: "농구장에서만 슛할 수 있습니다." });
+      return;
+    }
+
+    const game = normalizeBasketballGame(user.hall);
+    if (!game.active) {
+      ack?.({ ok: false, message: "먼저 경기 시작 버튼을 눌러주세요." });
+      return;
+    }
+
+    const now = Date.now();
+    if (now - (user.lastBasketballShotAt || 0) < BASKETBALL_SHOT_COOLDOWN_MS) {
+      ack?.({ ok: false, message: "조금만 기다린 뒤 다시 슛해보세요." });
+      return;
+    }
+
+    const zone = getNearestBasketballShotZone(user.position);
+    if (!zone) {
+      ack?.({ ok: false, message: "슛 존 안으로 들어가야 슛할 수 있습니다." });
+      return;
+    }
+
+    user.lastBasketballShotAt = now;
+    game.playerNames[user.id] = user.name;
+    const made = Math.random() < zone.successRate;
+    const points = made ? zone.points : 0;
+    if (made) {
+      game.scores[user.id] = (game.scores[user.id] || 0) + points;
+    }
+
+    game.lastShot = {
+      userId: user.id,
+      playerName: user.name,
+      zoneId: zone.id,
+      zoneLabel: zone.label,
+      made,
+      points,
+      at: now,
+      message: made
+        ? `${user.name}님이 ${zone.label}에서 ${points}점을 성공했어요!`
+        : `${user.name}님의 ${zone.label} 슛이 아쉽게 빗나갔습니다.`
+    };
+
+    broadcastBasketballState(user.hall);
+    ack?.({ ok: true, message: game.lastShot.message });
+  });
+
   socket.on("disconnect", () => {
     const user = users.get(socket.id);
     if (!user) {
@@ -362,6 +575,9 @@ io.on("connection", (socket) => {
     removeUserFromParties(user);
     socket.to(getAreaRoomKey(user.hall, user.currentArea)).emit("player:left", { id: socket.id });
     broadcastAreaState(user.hall, user.currentArea);
+    if (user.currentArea === "basketball") {
+      broadcastBasketballState(user.hall);
+    }
   });
 });
 

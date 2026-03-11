@@ -5,7 +5,7 @@ import cafeteriaPortalUrl from "../assets/portal-cafeteria.jpeg";
 import classroomPortalUrl from "../assets/portal-classroom.png";
 import { createRandomAvatar } from "../avatar";
 import { AREA_META, DEFAULT_AREA_ID, MAP } from "../constants";
-import { AREAS, getAreaById } from "../data/areas";
+import { AREAS, BASKETBALL_SHOT_ZONES, getAreaById } from "../data/areas";
 
 let lobbyLogoImage = null;
 const portalImages = {};
@@ -166,7 +166,7 @@ function drawAvatar(ctx, player) {
 }
 
 function drawPortal(ctx, area, isActive) {
-  const { x, y, radius, label } = area.portal;
+  const { x, y, radius } = area.portal;
   const portalImage = getProcessedPortalImage(area.id) || getPortalImage(area.id);
   ctx.save();
   ctx.translate(x, y);
@@ -217,7 +217,60 @@ function drawLobbyScene(ctx, previewAreaId) {
   AREAS.forEach((area) => drawPortal(ctx, area, area.id === previewAreaId));
 }
 
-function drawAreaScene(ctx, areaId) {
+function drawBasketballZones(ctx, currentShotZoneId, basketballGameActive) {
+  BASKETBALL_SHOT_ZONES.forEach((zone) => {
+    ctx.save();
+    ctx.globalAlpha = currentShotZoneId === zone.id ? 0.28 : 0.18;
+    ctx.fillStyle = zone.color;
+    ctx.beginPath();
+    ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = currentShotZoneId === zone.id ? "#ffffff" : zone.color;
+    ctx.lineWidth = currentShotZoneId === zone.id ? 5 : 3;
+    ctx.beginPath();
+    ctx.arc(zone.x, zone.y, zone.radius, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.fillStyle = "#fff9ef";
+    ctx.font = "700 18px sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(`${zone.label} ${zone.points}점`, zone.x, zone.y + 6);
+    ctx.restore();
+  });
+
+  ctx.save();
+  ctx.fillStyle = basketballGameActive ? "#f68f3c" : "#f9c47a";
+  ctx.beginPath();
+  ctx.arc(1188, 462, 18, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = "#7b3c16";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(1172, 462);
+  ctx.lineTo(1204, 462);
+  ctx.moveTo(1188, 446);
+  ctx.lineTo(1188, 478);
+  ctx.stroke();
+
+  ctx.strokeStyle = basketballGameActive ? "#ffffff" : "#ffe6c4";
+  ctx.lineWidth = 6;
+  ctx.strokeRect(1430, 420, 18, 120);
+  ctx.strokeStyle = "#d14124";
+  ctx.lineWidth = 8;
+  ctx.beginPath();
+  ctx.moveTo(1400, 480);
+  ctx.lineTo(1440, 480);
+  ctx.stroke();
+  ctx.fillStyle = "rgba(209, 65, 36, 0.2)";
+  ctx.beginPath();
+  ctx.ellipse(1420, 480, 28, 18, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawAreaScene(ctx, areaId, currentShotZoneId, basketballGameActive) {
   ctx.clearRect(0, 0, MAP.width, MAP.height);
 
   if (areaId === "basketball") {
@@ -236,6 +289,7 @@ function drawAreaScene(ctx, areaId) {
     ctx.stroke();
     ctx.strokeRect(84, 290, 132, 380);
     ctx.strokeRect(MAP.width - 216, 290, 132, 380);
+    drawBasketballZones(ctx, currentShotZoneId, basketballGameActive);
   } else if (areaId === "cafeteria") {
     ctx.fillStyle = "#7f573f";
     ctx.fillRect(0, 0, MAP.width, MAP.height);
@@ -311,7 +365,9 @@ export default function HallCanvas({
   currentArea,
   players,
   previewAreaId,
-  onPortalSelect
+  onPortalSelect,
+  currentShotZoneId,
+  basketballGameActive
 }) {
   const canvasRef = useRef(null);
 
@@ -321,7 +377,7 @@ export default function HallCanvas({
     if (currentArea === DEFAULT_AREA_ID) {
       drawLobbyScene(ctx, previewAreaId);
     } else {
-      drawAreaScene(ctx, currentArea);
+      drawAreaScene(ctx, currentArea, currentShotZoneId, basketballGameActive);
     }
 
     players.forEach((player) => {
@@ -329,7 +385,7 @@ export default function HallCanvas({
         drawAvatar(ctx, player);
       }
     });
-  }, [currentArea, players, previewAreaId]);
+  }, [currentArea, players, previewAreaId, currentShotZoneId, basketballGameActive]);
 
   function handleCanvasClick(event) {
     if (currentArea !== DEFAULT_AREA_ID) {
