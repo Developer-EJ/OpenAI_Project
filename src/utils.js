@@ -1,4 +1,4 @@
-﻿import { MAP } from "./constants";
+import { DEFAULT_AREA_ID, MAP } from "./constants";
 
 export function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
@@ -22,7 +22,11 @@ export function loadSession() {
   }
 
   try {
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    return {
+      currentArea: DEFAULT_AREA_ID,
+      ...parsed
+    };
   } catch {
     return null;
   }
