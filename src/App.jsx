@@ -89,11 +89,22 @@ export default function App() {
     [currentArea, previewAreaId, nearbyArea]
   );
   const currentAreaConfig = useMemo(() => getAreaById(currentArea), [currentArea]);
+  const voiceCandidatePeers = useMemo(
+    () =>
+      players
+        .filter((player) => player.id && player.id !== socket.id)
+        .map((player) => ({
+          id: player.id,
+          name: player.name
+        })),
+    [players]
+  );
 
   const voice = useAreaVoice({
     socket,
     selfId: self?.id || "",
-    enabled: Boolean(session && self)
+    enabled: Boolean(session && self),
+    candidatePeers: voiceCandidatePeers
   });
 
   useEffect(() => {
@@ -466,6 +477,8 @@ export default function App() {
             soundEnabled={voice.soundEnabled}
             peerSummaries={voice.peerSummaries}
             remoteStreams={voice.remoteStreams}
+            connectionTargetCount={voice.connectionTargetCount}
+            activeMicPeerCount={voice.activeMicPeerCount}
             voiceError={voice.voiceError}
           />
           <HallCanvas

@@ -26,7 +26,7 @@ function describeMediaError(error) {
   return "마이크를 시작하는 중 문제가 발생했습니다.";
 }
 
-export function useAreaVoice({ socket, selfId, enabled }) {
+export function useAreaVoice({ socket, selfId, enabled, candidatePeers = [] }) {
   const [micEnabled, setMicEnabled] = useState(false);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const [peerSummaries, setPeerSummaries] = useState([]);
@@ -228,6 +228,27 @@ export function useAreaVoice({ socket, selfId, enabled }) {
     setSoundEnabled((current) => !current);
   }
 
+  async function syncDesiredPeers(peerIds) {
+    const nextPeerIds = new Set((peerIds || []).filter((peerId) => peerId && peerId !== selfId));
+    Array.from(connectionsRef.current.keys()).forEach((peerId) => {
+      if (!nextPeerIds.has(peerId)) {
+        closePeerConnection(peerId);
+      }
+    });
+
+    await Promise.all(
+      Array.from(nextPeerIds).map(async (peerId) => {
+        ensurePeerConnection(peerId);
+        if (
+          shouldInitiateOffer(selfId, peerId) &&
+          !connectionsRef.current.get(peerId)?.pc.remoteDescription
+        ) {
+          await createOffer(peerId);
+        }
+      })
+    );
+  }
+
   useEffect(() => {
     if (!enabled || !selfId) {
       setPeerSummaries([]);
@@ -266,22 +287,13 @@ export function useAreaVoice({ socket, selfId, enabled }) {
     async function handleVoicePeers({ peers }) {
       const nextPeers = (peers || []).filter((peer) => peer.id !== selfId);
       setPeerSummaries(nextPeers);
-
-      const nextPeerIds = new Set(nextPeers.map((peer) => peer.id));
-      Array.from(connectionsRef.current.keys()).forEach((peerId) => {
-        if (!nextPeerIds.has(peerId)) {
-          closePeerConnection(peerId);
-        }
-      });
-
-      await Promise.all(
-        nextPeers.map(async (peer) => {
-          ensurePeerConnection(peer.id);
-          if (shouldInitiateOffer(selfId, peer.id) && !connectionsRef.current.get(peer.id)?.pc.remoteDescription) {
-            await createOffer(peer.id);
-          }
-        })
+      const desiredPeerIds = Array.from(
+        new Set([
+          ...nextPeers.map((peer) => peer.id),
+          ...candidatePeers.map((peer) => peer.id)
+        ])
       );
+      await syncDesiredPeers(desiredPeerIds);
     }
 
     async function handleVoiceSignal({ fromId, signal }) {
@@ -349,11 +361,26 @@ export function useAreaVoice({ socket, selfId, enabled }) {
     };
   }, [enabled, selfId, socket]);
 
+  useEffect(() => {
+    if (!enabled || !selfId) {
+      return;
+    }
+
+    void syncDesiredPeers(candidatePeers.map((peer) => peer.id));
+  }, [enabled, selfId, candidatePeers]);
+
+  const connectionTargetCount = Math.max(peerSummaries.length, candidatePeers.length);
+  const activeMicPeerCount =
+    peerSummaries.filter((peer) => peer.micEnabled).length ||
+    remoteStreams.filter((item) => (item.trackCount || 0) > 0).length;
+
   return {
     micEnabled,
     soundEnabled,
     peerSummaries,
     remoteStreams,
-    voiceError
+    voiceError,
+    connectionTargetCount,
+    activeMicPeerCount
   };
 }

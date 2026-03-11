@@ -47,9 +47,12 @@ export default function VoiceStatus({
   soundEnabled,
   peerSummaries,
   remoteStreams,
+  connectionTargetCount,
+  activeMicPeerCount,
   voiceError
 }) {
-  const activeMicPeers = peerSummaries.filter((peer) => peer.micEnabled).length;
+  const activeMicPeers = activeMicPeerCount ?? peerSummaries.filter((peer) => peer.micEnabled).length;
+  const connectionTargets = connectionTargetCount ?? peerSummaries.length;
 
   return (
     <>
@@ -58,7 +61,7 @@ export default function VoiceStatus({
         <p>{currentAreaLabel} 안의 사용자끼리만 음성이 연결됩니다.</p>
         <p>마이크: {micEnabled ? "ON" : "OFF"} (M)</p>
         <p>수신: {soundEnabled ? "ON" : "OFF"} (V)</p>
-        <p>같은 공간 연결 대상: {peerSummaries.length}명</p>
+        <p>같은 공간 연결 대상: {connectionTargets}명</p>
         <p>현재 송신 중인 인원: {activeMicPeers}명</p>
         {voiceError ? <p className="voice-status-error">{voiceError}</p> : null}
       </div>
