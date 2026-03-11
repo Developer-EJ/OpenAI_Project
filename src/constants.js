@@ -39,5 +39,21 @@ export const MAP = {
   tile: 64
 };
 
+const DEFAULT_REMOTE_SERVER_URL = "https://jungle-campus-production.up.railway.app";
+
+function getDefaultServerUrl() {
+  if (typeof window === "undefined") {
+    return DEFAULT_REMOTE_SERVER_URL;
+  }
+
+  const { hostname } = window.location;
+  const isLocalHost =
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "0.0.0.0";
+
+  return isLocalHost ? "http://localhost:3001" : DEFAULT_REMOTE_SERVER_URL;
+}
+
 export const SERVER_URL =
-  import.meta.env.VITE_SERVER_URL || "http://localhost:3001";
+  import.meta.env.VITE_SERVER_URL || getDefaultServerUrl();
